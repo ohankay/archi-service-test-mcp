@@ -109,7 +109,7 @@ def test_stdio_mobile_profile(tmp_path, demo_port):
                           params={"ToIban": "{{env.hedef_iban}}", "Amount": "1.00", "Description": "e2e",
                                   "TransferType": 1})
         assert res["success"] is True and res["business"] == {"success": True}
-        res = await _call(s, "list_personas", service="MobilBankacilik", environment="test")
+        res = await _call(s, "list_test_customers", service="MobilBankacilik", environment="test")
         assert res["sessions"][0]["persona"] == "bireysel_standart" and res["sessions"][0]["logins"] == 1
         res = await _call(s, "import_traffic_log", path=str(log))
         assert res["applied"] is False and res["services"][0]["summary"] == {"unchanged": 8}

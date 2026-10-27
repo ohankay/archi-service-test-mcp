@@ -7,7 +7,7 @@ Method:
    name: `list_operations` -> `describe_operation` -> `call_operation(service, operation, params, persona)`.
    The server adds the request envelope and headers, logs in (including OTP), renews the 5 minute session and
    retries once when the server ended it. Never send session keys, tokens or passwords yourself.
-2. `persona` is a named test customer (`list_personas`); the same name means the right customer in every
+2. `persona` is a named test customer (`list_test_customers`); the same name means the right customer in every
    environment. One login per customer at a time is enforced: if a persona is busy, use another persona or a
    pool persona, or ask the user - never work around it.
 3. Services without a profile: `describe_service` / `describe_operation`, then `soap_call` / `rest_call`; keep tokens

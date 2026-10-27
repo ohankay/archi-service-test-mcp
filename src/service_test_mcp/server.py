@@ -28,7 +28,7 @@ Invoke-WebRequest for service calls - use these tools.
 - Start with list_services. Services with a profile (e.g. mobile banking WCF) are called by OPERATION NAME:
   list_operations -> describe_operation -> call_operation(service, operation, params, persona). Login, OTP, session
   renewal, the request envelope and headers are done by the server; never send session keys or tokens yourself.
-  persona = named test customer (list_personas); one login per customer at a time, the server enforces it.
+  persona = named test customer (list_test_customers); one login per customer at a time, the server enforces it.
 - Other services: describe_service / describe_operation, then soap_call / rest_call. Use extract={"token":
   "$.Token"} to keep values as session variables and send them later as {{token}}.
 - Traffic logs (mobile app logs, HAR): import_traffic_log(path) - the server reads and masks the file, you get a
@@ -295,8 +295,8 @@ async def call_operation(service: str, operation: str, params: dict[str, Any] | 
     """Call an operation of a profile service by name. Pass only the operation's own params (see
     describe_operation); the server adds the envelope and headers, logs in with the persona (test customer) when
     needed, renews the session and retries once if the server ended it. Values may use {{variables}} and
-    {{persona.Field}}. persona: name from list_personas (default: the profile's default). extract = {name: JSONPath}
-    saves session variables; assertions = optional list checked on the response. fresh_session forces a new login.
+    {{persona.Field}}. persona: name from list_test_customers (default: the profile's default).
+    extract = {name: JSONPath} saves session variables; assertions = optional list checked on the response. fresh_session forces a new login.
     Returns business success/errors, status, body (masked), elapsed_ms."""
     def run() -> dict[str, Any]:
         e = engine()
@@ -316,7 +316,7 @@ async def call_operation(service: str, operation: str, params: dict[str, Any] | 
 
 
 @mcp.tool(annotations=READ)
-async def list_personas(service: str, environment: str | None = None) -> str:
+async def list_test_customers(service: str, environment: str | None = None) -> str:
     """Test customers (personas) of a profile service in an environment, the live sessions of this server and
     personas busy elsewhere (another VS Code window, agent or CI holds the login)."""
     def run() -> dict[str, Any]:
@@ -440,11 +440,11 @@ async def reload_config() -> str:
 
 
 TOOL_NAMES = ("list_services", "describe_service", "describe_operation", "check_service", "list_operations",
-              "call_operation", "list_personas", "end_sessions", "import_traffic_log", "soap_call", "rest_call",
+              "call_operation", "list_test_customers", "end_sessions", "import_traffic_log", "soap_call", "rest_call",
               "session_variables", "check_last_response", "validate_scenario", "run_scenario", "run_test_suite",
               "reload_config")
 # The smaller set for weaker models (standalone agent --toolset profile): no raw SOAP/REST.
-PROFILE_TOOL_NAMES = ("list_services", "list_operations", "describe_operation", "call_operation", "list_personas",
+PROFILE_TOOL_NAMES = ("list_services", "list_operations", "describe_operation", "call_operation", "list_test_customers",
                       "end_sessions", "import_traffic_log", "check_last_response", "validate_scenario",
                       "run_scenario", "run_test_suite")
 

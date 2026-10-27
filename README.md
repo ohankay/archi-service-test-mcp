@@ -119,7 +119,7 @@ Sunucu bu çağrı için sırasıyla şunları yapar:
 
 Profilin tüm seçenekleri `src/service_test_mcp/profile/model.py` başındaki açıklamada, çalışan bir örnek `examples/mobile/profiles/mobil.profile.yaml` içinde.
 
-**Personalar** (`list_personas` ile listelenir):
+**Personalar** (`list_test_customers` ile listelenir):
 
 ```yaml
 environments:
@@ -163,7 +163,7 @@ AI'sız kullanım: `service-test-mcp --import-log log.txt [--apply] [--scenario-
 | `list_operations` | Profil servisinin katalogu: ad, tür, session, parametre adları; arama/tür/etiket filtresi |
 | `describe_operation` | Profil: katalog girdisi (örnek parametreler, istek/yanıt şeması, tür). SOAP: şema, `example_params`. REST: OpenAPI |
 | `call_operation` | Profil servisinde operasyon adıyla çağrı. Zarf, login, OTP ve session otomatik; isteğe bağlı `assertions` ve `extract` |
-| `list_personas` | Personalar, bu sunucunun session'ları ve başka yerde (başka pencere, ajan, CI) kilitli personalar |
+| `list_test_customers` | Personalar, bu sunucunun session'ları ve başka yerde (başka pencere, ajan, CI) kilitli personalar |
 | `end_sessions` | Logout yapar ve persona kilitlerini bırakır |
 | `import_traffic_log` | Logu sunucuda okur ve katalog önerisi sunar (önizleme / `apply`), taslak senaryo üretir |
 | `describe_service`, `check_service` | Servis ayrıntısı ve bağlantı testi |
