@@ -1,0 +1,33 @@
+# Demo catalogue for the local demo services:  service-test-mcp --demo-server  (http://127.0.0.1:8899)
+default_environment: test
+
+environments:
+  test:
+    description: Yerel demo servisleri
+    timeout_s: 15
+    allow_mutating: false          # TransferYap gibi islemler engellenir
+    variables:                     # senaryolarda {{env.ad}} ile kullanilir (ortama gore test verisi)
+      kullanici: demo
+      demo_sifre: Demo123!         # SADECE DEMO. Gercek sifreler {{secret.STM_SECRET_...}} ile verilir.
+      musteri_no: "1000001"
+
+services:
+  HesapServisi:
+    protocol: soap
+    description: WCF basicHttpBinding demo servisi (Login, GetBakiye, TransferYap)
+    wsdl:
+      test: http://127.0.0.1:8899/HesapServisi.svc?wsdl
+    mutating_operations: [TransferYap]
+
+  HesapApi:
+    protocol: rest
+    description: Hesap REST API (Bearer token)
+    base_url:
+      test: http://127.0.0.1:8899/api
+    mutating_operations: ["DELETE /*"]
+
+masking:
+  enabled: true
+  keep_last: 4
+
+scenario_root: .

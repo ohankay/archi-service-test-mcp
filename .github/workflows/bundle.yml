@@ -1,0 +1,125 @@
+name: Windows bundle
+
+# Tests the committed download packages on real Windows, for 64-bit and 32-bit Python:
+#   release/archi-service-test-mcp-windows-x64.zip, release/archi-service-test-mcp-windows-x86.zip
+# freshness vs. source, offline install with install.cmd on every supported Python, MCP stdio
+# smoke test and wrong-architecture detection.
+# Rebuild the zips with: pip install uv && python scripts/build_bundle.py
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["release/**", "bundle/**", "scripts/build_bundle.py", "src/**", "pyproject.toml",
+            ".github/workflows/bundle.yml"]
+
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: The zips must contain the current source
+        shell: python
+        run: |
+          import io, pathlib, sys, zipfile
+          norm = lambda b: b.replace(b"\r\n", b"\n")
+          stale = []
+          for arch in ("x64", "x86"):
+              outer = zipfile.ZipFile(f"release/archi-service-test-mcp-windows-{arch}.zip")
+              names = outer.namelist()
+              if outer.read("archi-service-test-mcp/bundle_arch.txt").decode() != arch:
+                  stale.append(f"{arch}: bundle_arch.txt")
+              for f in ("install.cmd", "KURULUM_REHBERI.md"):
+                  if norm(outer.read(f"archi-service-test-mcp/{f}")) != norm(pathlib.Path("bundle", f).read_bytes()):
+                      stale.append(f"{arch}: {f}")
+              whl = next(n for n in names if n.startswith("archi-service-test-mcp/wheelhouse/archi_service_test_mcp-"))
+              inner = zipfile.ZipFile(io.BytesIO(outer.read(whl)))
+              for src in sorted(pathlib.Path("src/service_test_mcp").rglob("*")):
+                  if src.suffix not in (".py", ".md"):
+                      continue
+                  rel = src.relative_to("src").as_posix()
+                  if norm(inner.read(rel)) != norm(src.read_bytes()):
+                      stale.append(f"{arch}: {src}")
+          if stale:
+              sys.exit("zip is stale, run scripts/build_bundle.py: " + ", ".join(stale))
+          print("zips are up to date")
+
+  install-test:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, x86]
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: ${{ matrix.arch }}
+      - name: Unzip
+        shell: pwsh
+        run: Expand-Archive release\archi-service-test-mcp-windows-${{ matrix.arch }}.zip -DestinationPath C:\bundle
+      - name: Offline install with install.cmd (no network to PyPI)
+        shell: cmd
+        env:
+          STM_INSTALL_HOME: C:\stmcp
+          STM_PYTHON: python
+          PIP_INDEX_URL: http://127.0.0.1:9/blocked
+        run: |
+          cd /d C:\bundle\archi-service-test-mcp
+          call install.cmd
+          if errorlevel 1 exit /b 1
+      - name: Smoke test (CLI + MCP stdio handshake)
+        shell: pwsh
+        run: |
+          & C:\stmcp\Scripts\service-test-mcp.exe --version
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & C:\stmcp\Scripts\service-test-agent.exe --help | Out-Null
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & C:\stmcp\Scripts\service-test-mcp.exe --check | Out-String | Write-Output
+          if ($LASTEXITCODE -ne 1) { Write-Error "--check without config must exit 1"; exit 1 }
+          Start-Process -FilePath C:\stmcp\Scripts\service-test-mcp.exe -ArgumentList "--demo-server" -WindowStyle Hidden
+          Start-Sleep -Seconds 3
+          $env:STM_CONFIG = "C:\bundle\archi-service-test-mcp\demo\services.yaml"
+          & C:\stmcp\Scripts\service-test-mcp.exe --run C:\bundle\archi-service-test-mcp\demo\scenarios --junit C:\stmcp\junit.xml
+          if ($LASTEXITCODE -ne 0) { Write-Error "demo scenarios failed"; exit 1 }
+          Remove-Item Env:STM_CONFIG
+          @'
+          import asyncio, json, struct
+          from mcp import ClientSession, StdioServerParameters
+          from mcp.client.stdio import stdio_client
+
+          async def main():
+              params = StdioServerParameters(command=r"C:\stmcp\Scripts\service-test-mcp.exe", args=[])
+              async with stdio_client(params) as (r, w), ClientSession(r, w) as s:
+                  await s.initialize()
+                  tools = {t.name for t in (await s.list_tools()).tools}
+                  assert len(tools) == 12, tools
+                  res = json.loads((await s.call_tool("soap_call", {"service": "x", "operation": "y"})).content[0].text)
+                  assert res["success"] is False and "No services configured" in res["error"]["message"], res
+              print("stdio OK,", len(tools), "tools,", struct.calcsize("P") * 8, "bit")
+
+          asyncio.run(main())
+          '@ | Set-Content smoke.py
+          & C:\stmcp\Scripts\python.exe smoke.py
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $info = & C:\stmcp\Scripts\python.exe -c "import struct, sys; print('%d.%d-%d' % (sys.version_info[0], sys.version_info[1], struct.calcsize('P') * 8))"
+          $bits = if ("${{ matrix.arch }}" -eq "x86") { "32" } else { "64" }
+          if ($info -ne "${{ matrix.python }}-$bits") { Write-Error "venv is $info, expected ${{ matrix.python }}-$bits"; exit 1 }
+      - name: Wrong-architecture package is rejected with a clear message
+        shell: cmd
+        env:
+          STM_INSTALL_HOME: C:\stmcp-wrong
+          STM_PYTHON: python
+        run: |
+          if "${{ matrix.arch }}"=="x64" (set OTHER=x86) else (set OTHER=x64)
+          powershell -Command "Expand-Archive release\archi-service-test-mcp-windows-%OTHER%.zip -DestinationPath C:\other"
+          cd /d C:\other\archi-service-test-mcp
+          call install.cmd
+          if not "%ERRORLEVEL%"=="14" ( echo expected exit code 14, got %ERRORLEVEL% & exit /b 1 )
+          echo wrong-architecture check OK
+          exit /b 0

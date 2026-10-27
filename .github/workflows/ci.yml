@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --prefer-binary -e ".[dev]"
+      - name: Tests (demo SOAP + REST services, stdio + HTTP e2e, agent with a fake LLM)
+        run: pytest -v
+
+  windows:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, python: "3.10" }
+          - { arch: x64, python: "3.12" }
+          - { arch: x64, python: "3.14" }
+          - { arch: x86, python: "3.12" }
+          - { arch: x86, python: "3.14" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: ${{ matrix.arch }}
+      - run: pip install --prefer-binary --find-links vendor -e ".[dev]"
+      - name: Dependency check (pywin32 / SSPI / lxml)
+        run: |
+          pip check
+          python -c "import pywintypes, requests_negotiate_sspi, lxml.etree, zeep, yaml, struct; print('deps OK', struct.calcsize('P') * 8, 'bit')"
+      - run: pytest -v

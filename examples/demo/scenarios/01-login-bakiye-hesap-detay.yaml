@@ -1,0 +1,66 @@
+id: login-bakiye-hesap-detay
+title: SOAP login -> SOAP bakiye -> REST hesap detayi (token zinciri)
+tags: [smoke, hesap]
+variables:
+  kullanici: "{{env.kullanici}}"
+steps:
+  - name: Login (SOAP)
+    service: HesapServisi
+    operation: Login
+    params:
+      kullaniciAdi: "{{kullanici}}"
+      sifre: "{{env.demo_sifre}}"
+    assert:
+      - fault: none
+      - path: $.Basarili
+        equals: true
+      - path: $.Token
+        notEmpty: true
+      - responseTimeMs: { lt: 3000 }
+    extract:
+      token: $.Token
+      musteriNo: $.MusteriNo
+
+  - name: Bakiye sorgula (SOAP)
+    service: HesapServisi
+    operation: GetBakiye
+    params:
+      token: "{{token}}"
+      musteriNo: "{{musteriNo}}"
+    assert:
+      - fault: none
+      - path: $.MusteriNo
+        equals: "{{musteriNo}}"
+      - path: $.Hesaplar.Hesap
+        count: { gte: 1 }
+      - path: $.ToplamBakiyeTRY
+        numeric: { gte: 0 }
+      - path: $.Hesaplar.Hesap[*].Iban
+        matches: "^TR\\d{24}$"
+        all: true
+      - path: $.Hesaplar.Hesap[*].DovizKodu
+        in: [TRY, USD, EUR]
+        all: true
+      - path: $.SorguZamani
+        type: datetime
+    extract:
+      tryHesapNo: "$.Hesaplar.Hesap[?(@.DovizKodu == 'TRY')].HesapNo"
+
+  - name: Hesap detayi (REST, Bearer token)
+    service: HesapApi
+    method: GET
+    path: /hesaplar/{{tryHesapNo}}
+    headers:
+      Authorization: "Bearer {{token}}"
+    assert:
+      - status: 200
+      - header: Content-Type
+        contains: json
+      - path: $.durum
+        equals: AKTIF
+      - path: $.bakiye
+        numeric: { eq: 1500.50, tolerance: 0.01 }
+      - path: $.hareketler[*].tutar
+        type: number
+        all: true
+      - schema: ../schemas/hesap-detay.json

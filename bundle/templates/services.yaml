@@ -1,0 +1,77 @@
+# service-test-mcp servis katalogu.  Yer: %USERPROFILE%\.service-test-mcp\services.yaml  (veya mcp.json -> STM_CONFIG)
+# Sifre / token bu dosyaya YAZILMAZ: *_env alanlari, mcp.json "env" icindeki ${input:...} degiskenlerini gosterir.
+# Prod ortami tanimlanamaz (prod, production, prd, canli, live adlari reddedilir).
+
+default_environment: test
+
+environments:
+  test:
+    description: Test ortami
+    verify_tls: true              # true | false | kurum CA dosyasi: C:\\certs\\kurum-ca.pem
+    timeout_s: 30
+    # proxy: http://proxy.sirket.local:8080   # "none" = sistem proxy ayarlarini kullanma
+    allow_mutating: false         # mutating_operations listesindeki islemler engellenir
+    variables:                    # senaryolarda {{env.test_musteri_no}}
+      test_musteri_no: "1234567"
+  preprod:
+    description: Preprod
+    allow_mutating: false
+
+services:
+  # --- WCF / SOAP: Windows oturumu ile (sifre gerekmez) ---------------------------------------------
+  HesapServisi:
+    protocol: soap
+    description: Hesap islemleri (WCF basicHttpBinding)
+    wsdl:
+      test: https://SUNUCU-TEST/HesapServisi.svc?wsdl
+      preprod: https://SUNUCU-PREPROD/HesapServisi.svc?wsdl
+    # endpoint:                   # WSDL farkli bir adres yayinliyorsa (load balancer / makine adi)
+    #   test: https://SUNUCU-TEST/HesapServisi.svc
+    auth: { type: windows }       # windows | ntlm | basic | ws_username_token | client_cert | none
+    mutating_operations: [TransferYap, "*Sil", "*Guncelle"]
+    # port_name: BasicHttpBinding_IHesapServisi   # birden fazla binding varsa
+
+  # --- WCF / SOAP: servis kullanicisi ile NTLM ------------------------------------------------------
+  MusteriServisi:
+    protocol: soap
+    wsdl: https://SUNUCU-TEST/MusteriServisi.svc?wsdl
+    auth: { type: ntlm, user: "DOMAIN\\svc_test", password_env: STM_PW_NTLM }
+    environments: [test]
+
+  # --- REST: bearer token -----------------------------------------------------------------------------
+  OdemeApi:
+    protocol: rest
+    base_url:
+      test: https://api-test.sirket.local/odeme/v1
+    openapi:                      # istege bagli: describe_service / describe_operation icin
+      test: https://api-test.sirket.local/odeme/v1/swagger.json
+    auth: { type: bearer, token_env: STM_TOKEN_API }
+    headers: { X-Channel: TEST }
+    mutating_operations: ["POST /odemeler*", "DELETE /*"]
+
+  # --- Profilli servis ailesi: mobil bankacilik WCF (webHttpBinding, JSON) ----------------------------
+  # Operasyon adiyla cagrilir (call_operation). Zarf, login + OTP, session, personalar ve katalog profil
+  # dosyasindadir; ornek: mobile\profiles\mobil.profile.yaml (bu paketteki mobile klasoru).
+  # MobilBankacilik:
+  #   protocol: rest
+  #   base_url:
+  #     test: https://MOBIL-TEST/BOA.Integration.MobileBranch
+  #     preprod: https://MOBIL-PREPROD/BOA.Integration.MobileBranch
+  #   profile: profiles/mobil.profile.yaml      # bu dosyaya gore goreli yol
+
+# Persona kilitleri (ayni test musterisiyle paralel login yok). Varsayilan: %USERPROFILE%\.service-test-mcp\locks
+# Ayni musterileri birden cok makine kullaniyorsa ortak bir klasor verin:
+# locks:
+#   dir: \\dosya-sunucusu\qa\service-test-locks
+#   wait_s: 30                    # persona doluysa bu kadar bekle
+
+masking:
+  enabled: true
+  keep_last: 4
+  fields: [musteriNo]             # ek maskelenecek alan adlari (fnmatch)
+  unmask_fields: []               # hic maskelenmeyecek alan adlari
+  # patterns: { kurumKodu: "KT\\d{8}" }
+
+# blocked_hosts: ["*.prod.sirket.local", "*-prod*"]
+# audit: { enabled: true, dir: "D:\\loglar\\service-test" }
+# scenario_root: D:\\testler\\senaryolar    # senaryo yollari bu klasorle sinirlanir

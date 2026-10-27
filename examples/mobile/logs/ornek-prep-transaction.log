@@ -1,0 +1,345 @@
+
+*****************************************************************
+Date: 27-10-2026 10:15:00
+Method: post
+Method Name: ApplicationPreData
+URL: http://127.0.0.1:8899/prep/MobileBranch/Base/BaseService.svc/ApplicationPreData
+RequestData: {
+  "DeviceId": "7D1E7C1E-0000-4000-8000-00000000A001",
+  "AppName": "IOS MobileBranch",
+  "Version": "7.2.5",
+  "Platform": 3,
+  "DeviceOSName": "IOS",
+  "DeviceOSVersion": "26.5.2",
+  "DeviceModel": "iPhone 15 Pro Max",
+  "LanguageId": 1,
+  "SessionType": 1,
+  "IsDeviceRooted": false,
+  "ExtUName": "MobileTestApp",
+  "ExtUPassword": "Demo-App-Pass1",
+  "MethodName": "ApplicationPreData",
+  "ExtUSessionKey": ""
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:01
+Method Name: ApplicationPreData
+URL: http://127.0.0.1:8899/prep/MobileBranch/Base/BaseService.svc/ApplicationPreData
+ResponseData: {
+  "Success": true,
+  "Results": [],
+  "Value": {
+    "MinVersion": "7.0.0",
+    "Maintenance": false
+  }
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:02
+Method: post
+Method Name: LoginForMobileBranch
+URL: http://127.0.0.1:8899/prep/MobileBranch/Authentication/AuthenticationService.svc/LoginForMobileBranch
+RequestData: {
+  "DeviceId": "7D1E7C1E-0000-4000-8000-00000000A001",
+  "AppName": "IOS MobileBranch",
+  "Version": "7.2.5",
+  "Platform": 3,
+  "DeviceOSName": "IOS",
+  "DeviceOSVersion": "26.5.2",
+  "DeviceModel": "iPhone 15 Pro Max",
+  "LanguageId": 1,
+  "SessionType": 1,
+  "IsDeviceRooted": false,
+  "ExtUName": "MobileTestApp",
+  "ExtUPassword": "Demo-App-Pass1",
+  "MethodName": "LoginForMobileBranch",
+  "ExtUSessionKey": "",
+  "UserId": "P1-d4a2"
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:02
+Method Name: LoginForMobileBranch
+URL: http://127.0.0.1:8899/prep/MobileBranch/Authentication/AuthenticationService.svc/LoginForMobileBranch
+ResponseData: {
+  "Success": true,
+  "Results": [],
+  "SessionKey": "9b022a04a7f1499bbb53e544bf3bf6ba",
+  "SessionId": "63ed52d9-d789-4184-af4f-432b49d7d21c",
+  "IsCaptchaRequired": false
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:03
+Method: post
+Method Name: InsertClientLog
+URL: http://127.0.0.1:8899/prep/MobileBranch/ClientLog/ClientLogService.svc/InsertClientLog
+RequestData: {
+  "DeviceId": "7D1E7C1E-0000-4000-8000-00000000A001",
+  "AppName": "IOS MobileBranch",
+  "Version": "7.2.5",
+  "Platform": 3,
+  "DeviceOSName": "IOS",
+  "DeviceOSVersion": "26.5.2",
+  "DeviceModel": "iPhone 15 Pro Max",
+  "LanguageId": 1,
+  "SessionType": 1,
+  "IsDeviceRooted": false,
+  "ExtUName": "MobileTestApp",
+  "ExtUPassword": "Demo-App-Pass1",
+  "MethodName": "InsertClientLog",
+  "ExtUSessionKey": "9b022a04a7f1499bbb53e544bf3bf6ba",
+  "LogText": "app started",
+  "OwnerCustomerId": "2000001"
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:04
+Method: post
+Method Name: InitialLogin
+URL: http://127.0.0.1:8899/prep/MobileBranch/Authentication/AuthenticationService.svc/InitialLogin
+RequestData: {
+  "DeviceId": "7D1E7C1E-0000-4000-8000-00000000A001",
+  "AppName": "IOS MobileBranch",
+  "Version": "7.2.5",
+  "Platform": 3,
+  "DeviceOSName": "IOS",
+  "DeviceOSVersion": "26.5.2",
+  "DeviceModel": "iPhone 15 Pro Max",
+  "LanguageId": 1,
+  "SessionType": 1,
+  "IsDeviceRooted": false,
+  "ExtUName": "MobileTestApp",
+  "ExtUPassword": "Demo-App-Pass1",
+  "MethodName": "InitialLogin",
+  "ExtUSessionKey": "",
+  "CustomerId": "2000001",
+  "ActivationToken": "ACT-2000001-m3"
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:04
+Method Name: InitialLogin
+URL: http://127.0.0.1:8899/prep/MobileBranch/Authentication/AuthenticationService.svc/InitialLogin
+ResponseData: {
+  "Success": true,
+  "Results": [],
+  "SessionKey": "f960886e5b64459d9ca3f5a96228d315",
+  "SessionId": "d8967e5f-b908-47b7-9f7a-f677ef5a2d05",
+  "CustomerId": 2000001,
+  "AuthenticationToken": "eyJ.demo.ee3556d38d2e40a6b355c823d98be8ce",
+  "IsCustomerPrivate": false
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:05
+Method: post
+Method Name: OtpLoginCompleteNew
+URL: http://127.0.0.1:8899/prep/MobileBranch/Authentication/AuthenticationService.svc/OtpLoginCompleteNew
+RequestData: {
+  "DeviceId": "7D1E7C1E-0000-4000-8000-00000000A001",
+  "AppName": "IOS MobileBranch",
+  "Version": "7.2.5",
+  "Platform": 3,
+  "DeviceOSName": "IOS",
+  "DeviceOSVersion": "26.5.2",
+  "DeviceModel": "iPhone 15 Pro Max",
+  "LanguageId": 1,
+  "SessionType": 1,
+  "IsDeviceRooted": false,
+  "ExtUName": "MobileTestApp",
+  "ExtUPassword": "Demo-App-Pass1",
+  "MethodName": "OtpLoginCompleteNew",
+  "ExtUSessionKey": "f960886e5b64459d9ca3f5a96228d315",
+  "GeneratedOtp": "123456",
+  "CustomerId": "2000001",
+  "OwnerCustomerId": "2000001"
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:06
+Method Name: OtpLoginCompleteNew
+URL: http://127.0.0.1:8899/prep/MobileBranch/Authentication/AuthenticationService.svc/OtpLoginCompleteNew
+ResponseData: {
+  "Success": true,
+  "Results": [],
+  "LoginResponse": {
+    "CustomerName": "Ali Çelik",
+    "CustomerId": 2000001
+  }
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:07
+Method: post
+Method Name: GetDashBoardMobileInformation
+URL: http://127.0.0.1:8899/prep/MobileBranch/DashBoard/DashBoardService.svc/GetDashBoardMobileInformation
+RequestData: {
+  "DeviceId": "7D1E7C1E-0000-4000-8000-00000000A001",
+  "AppName": "IOS MobileBranch",
+  "Version": "7.2.5",
+  "Platform": 3,
+  "DeviceOSName": "IOS",
+  "DeviceOSVersion": "26.5.2",
+  "DeviceModel": "iPhone 15 Pro Max",
+  "LanguageId": 1,
+  "SessionType": 1,
+  "IsDeviceRooted": false,
+  "ExtUName": "MobileTestApp",
+  "ExtUPassword": "Demo-App-Pass1",
+  "MethodName": "GetDashBoardMobileInformation",
+  "ExtUSessionKey": "f960886e5b64459d9ca3f5a96228d315",
+  "MainResourceCode": "DASHBOARD",
+  "OwnerCustomerId": "2000001"
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:07
+Method Name: GetDashBoardMobileInformation
+URL: http://127.0.0.1:8899/prep/MobileBranch/DashBoard/DashBoardService.svc/GetDashBoardMobileInformation
+ResponseData: {
+  "Success": true,
+  "Results": [],
+  "Value": {
+    "CustomerName": "Ali Çelik",
+    "Accounts": [
+      {
+        "AccountNumber": "2000001-1",
+        "Iban": "TR560006400000011111111111",
+        "Balance": 990.0,
+        "CurrencyCode": "TRY"
+      }
+    ]
+  }
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:08
+Method Name: GetDashBoardMobileInformation
+URL: http://127.0.0.1:8899/prep/MobileBranch/DashBoard/DashBoardService.svc/GetDashBoardMobileInformation
+ResponseData: {
+  "Success": true,
+  "Results": [],
+  "Value": {
+    "CustomerName": "Ali Çelik",
+    "Accounts": [
+      {
+        "AccountNumber": "2000001-1",
+        "Iban": "TR560006400000011111111111",
+        "Balance": 990.0,
+        "CurrencyCode": "TRY"
+      }
+    ]
+  }
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:09
+Method: post
+Method Name: GetProfileBasics
+URL: http://127.0.0.1:8899/prep/MobileBranch/Settings/SettingsService.svc/GetProfileBasics
+RequestData: {
+  "DeviceId": "7D1E7C1E-0000-4000-8000-00000000A001",
+  "AppName": "IOS MobileBranch",
+  "Version": "7.2.5",
+  "Platform": 3,
+  "DeviceOSName": "IOS",
+  "DeviceOSVersion": "26.5.2",
+  "DeviceModel": "iPhone 15 Pro Max",
+  "LanguageId": 1,
+  "SessionType": 1,
+  "IsDeviceRooted": false,
+  "ExtUName": "MobileTestApp",
+  "ExtUPassword": "Demo-App-Pass1",
+  "MethodName": "GetProfileBasics",
+  "ExtUSessionKey": "f960886e5b64459d9ca3f5a96228d315",
+  "OwnerCustomerId": "2000001"
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:09
+Method Name: GetProfileBasics
+URL: http://127.0.0.1:8899/prep/MobileBranch/Settings/SettingsService.svc/GetProfileBasics
+ResponseData: {
+  "Success": true,
+  "Results": [],
+  "Value": {
+    "CustomerId": 2000001,
+    "Name": "Ali Çelik",
+    "Email": "musteri@example.com"
+  }
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:10
+Method: post
+Method Name: ExecuteMoneyTransfer
+URL: http://127.0.0.1:8899/prep/MobileBranch/MoneyTransfer/MoneyTransferService.svc/ExecuteMoneyTransfer
+RequestData: {
+  "DeviceId": "7D1E7C1E-0000-4000-8000-00000000A001",
+  "AppName": "IOS MobileBranch",
+  "Version": "7.2.5",
+  "Platform": 3,
+  "DeviceOSName": "IOS",
+  "DeviceOSVersion": "26.5.2",
+  "DeviceModel": "iPhone 15 Pro Max",
+  "LanguageId": 1,
+  "SessionType": 1,
+  "IsDeviceRooted": false,
+  "ExtUName": "MobileTestApp",
+  "ExtUPassword": "Demo-App-Pass1",
+  "MethodName": "ExecuteMoneyTransfer",
+  "ExtUSessionKey": "f960886e5b64459d9ca3f5a96228d315",
+  "ToIban": "TR320010009999901234567890",
+  "Amount": "25.50",
+  "Description": "kira",
+  "TransferType": 1,
+  "OwnerCustomerId": "2000001"
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:11
+Method Name: ExecuteMoneyTransfer
+URL: http://127.0.0.1:8899/prep/MobileBranch/MoneyTransfer/MoneyTransferService.svc/ExecuteMoneyTransfer
+ResponseData: {
+  "Success": true,
+  "Results": [],
+  "Value": {
+    "TransactionId": "TRXF6585B7138",
+    "Amount": 25.5,
+    "NewBalance": 964.5
+  }
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:11
+Method: post
+Method Name: Logout
+URL: http://127.0.0.1:8899/prep/MobileBranch/Authentication/AuthenticationService.svc/Logout
+RequestData: {
+  "DeviceId": "7D1E7C1E-0000-4000-8000-00000000A001",
+  "AppName": "IOS MobileBranch",
+  "Version": "7.2.5",
+  "Platform": 3,
+  "DeviceOSName": "IOS",
+  "DeviceOSVersion": "26.5.2",
+  "DeviceModel": "iPhone 15 Pro Max",
+  "LanguageId": 1,
+  "SessionType": 1,
+  "IsDeviceRooted": false,
+  "ExtUName": "MobileTestApp",
+  "ExtUPassword": "Demo-App-Pass1",
+  "MethodName": "Logout",
+  "ExtUSessionKey": "f960886e5b64459d9ca3f5a96228d315",
+  "OwnerCustomerId": "2000001"
+}
+
+*****************************************************************
+Date: 27-10-2026 10:15:12
+Method Name: Logout
+URL: http://127.0.0.1:8899/prep/MobileBranch/Authentication/AuthenticationService.svc/Logout
+ResponseData: {
+  "Success": true,
+  "Results": []
+}
+

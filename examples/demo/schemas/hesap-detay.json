@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["hesapNo", "iban", "durum", "bakiye", "dovizKodu", "musteri"],
+  "properties": {
+    "hesapNo": { "type": "string" },
+    "iban": { "type": "string", "pattern": "^TR\\d{24}$" },
+    "durum": { "enum": ["AKTIF", "PASIF", "BLOKELI"] },
+    "bakiye": { "type": "number" },
+    "dovizKodu": { "type": "string", "minLength": 3, "maxLength": 3 },
+    "musteri": {
+      "type": "object",
+      "required": ["musteriNo", "tckn"],
+      "properties": { "tckn": { "type": "string", "pattern": "^[1-9]\\d{10}$" } }
+    },
+    "hareketler": { "type": "array" }
+  }
+}

@@ -1,0 +1,125 @@
+# Profile of the mobile banking WCF services (webHttpBinding, JSON over POST).
+# Everything specific to this service family is here; the MCP code knows nothing about it.
+
+name: mobile-wcf
+description: >-
+  Mobil uygulamanin kullandigi WCF servisleri. Her istek POST <base_url>/<Modul>/<Servis>.svc/<Metod>,
+  govde = zarf (cihaz/uygulama/oturum alanlari) + operasyon parametreleri.
+
+request:
+  method: POST
+  url: "{path}/{operation}"
+  envelope:                                  # her istekte gonderilen ortak alanlar
+    MethodName: "{{operation}}"
+    ExtUSessionKey: "{{session.SessionKey}}"
+    ExtUName: "{{env.app_user}}"
+    ExtUPassword: "{{env.app_password}}"     # gercek ortamlarda: "{{secret.STM_SECRET_MOBIL_APP_PASSWORD}}"
+    DeviceId: "{{env.device_id}}"
+    AppName: "{{env.app_name}}"
+    Version: "{{env.app_version}}"
+    Platform: 3
+    DeviceOSName: IOS
+    DeviceOSVersion: "26.5.2"
+    DeviceModel: iPhone 15 Pro Max
+    LanguageId: 1
+    SessionType: 1
+    IsDeviceRooted: false
+  session_envelope:                          # yalnizca bir persona ile oturum acikken eklenir
+    OwnerCustomerId: "{{persona.CustomerId}}"
+  headers: {}                                # header detaylari henuz acik konu; sablon burada tanimlanacak
+
+success:                                     # is seviyesinde basari: HTTP 200 + Success: true
+  - status: { lt: 400 }
+  - path: $.Success
+    equals: true
+error_paths: ["$.Results[*].ErrorCode", "$.Results[*].ErrorMessage"]
+
+session:
+  ttl_s: 300                                 # sunucuda oturum 5 dakika
+  refresh_margin_s: 30                       # 4,5 dakikayi gecen oturum bir sonraki cagridan once yenilenir
+  ttl_mode: absolute
+  defaults: { SessionKey: "" }
+  login:
+    - operation: LoginForMobileBranch        # uygulama seviyesi giris
+      params: { UserId: "{{persona.UserId}}" }
+      extract: { SessionKey: $.SessionKey }
+    - operation: InitialLogin                # musteri girisi (yeni oturum anahtari)
+      params:
+        ExtUSessionKey: ""
+        CustomerId: "{{persona.CustomerId}}"
+        ActivationToken: "{{persona.ActivationToken}}"
+      extract: { SessionKey: $.SessionKey, AuthenticationToken: $.AuthenticationToken }
+    - operation: OtpLoginCompleteNew         # test ortaminda OTP sabit
+      params:
+        GeneratedOtp: "{{env.otp}}"
+        CustomerId: "{{persona.CustomerId}}"
+  logout: { operation: Logout }
+  expired_when:                              # sunucu oturumu bitirdi -> yeniden login + bir kez tekrar
+    - path: $.Results[*].ErrorCode
+      contains: SESSION_EXPIRED
+  retry_mutating_on_expired: false           # para hareketi otomatik tekrarlanmaz
+
+personas:
+  identity: [CustomerId]                     # paralel login kilidi bu alana gore
+  default: bireysel_standart
+
+environments:
+  test:
+    variables:
+      app_user: MobileTestApp
+      app_password: Demo-App-Pass1           # SADECE DEMO
+      device_id: 7D1E7C1E-0000-4000-8000-00000000A001
+      app_name: IOS MobileBranch
+      app_version: "7.2.5"
+      hedef_iban: TR320010009999901234567890
+    personas:
+      bireysel_standart:
+        description: Standart bireysel musteri
+        CustomerId: 1000001
+        UserId: U1-a8f3
+        ActivationToken: ACT-1000001-x9
+      bireysel_havuz:
+        description: Paralel kosular icin bireysel musteri havuzu
+        pool:
+          - { CustomerId: 1000002, UserId: U2-b7e1, ActivationToken: ACT-1000002-k4 }
+          - { CustomerId: 1000003, UserId: U3-c2d9, ActivationToken: ACT-1000003-p7 }
+      yeni_musteri:
+        description: Test verisi servisinden her seferinde alinan musteri
+        source:
+          operation: GetTestCustomer
+          extract:
+            CustomerId: $.Value.CustomerId
+            UserId: $.Value.UserId
+            ActivationToken: $.Value.ActivationToken
+  prep:
+    variables:
+      app_user: MobileTestApp
+      app_password: Demo-App-Pass1           # SADECE DEMO
+      device_id: 7D1E7C1E-0000-4000-8000-00000000B002
+      app_name: IOS MobileBranch
+      app_version: "7.2.5"
+      hedef_iban: TR320010009999901234567890
+    personas:
+      bireysel_standart:                     # ayni persona adi, ortama ozgu musteri
+        CustomerId: 2000001
+        UserId: P1-d4a2
+        ActivationToken: ACT-2000001-m3
+      bireysel_havuz:
+        pool:
+          - { CustomerId: 2000002, UserId: P2-e5b3, ActivationToken: ACT-2000002-n8 }
+          - { CustomerId: 2000003, UserId: P3-f6c4, ActivationToken: ACT-2000003-q1 }
+      yeni_musteri:
+        source:
+          operation: GetTestCustomer
+          extract:
+            CustomerId: $.Value.CustomerId
+            UserId: $.Value.UserId
+            ActivationToken: $.Value.ActivationToken
+
+noise: [InsertClientLog, HasUnreadNotification*, GetCusExpMeasureDefinitions*]
+
+importer:
+  persona_fields: [CustomerId, OwnerCustomerId, UserId, ActivationToken]
+  secret_fields: [ExtUPassword, GeneratedOtp, StsLoginOtp, ActivationToken]
+
+catalog: mobil.catalog.yaml

@@ -1,0 +1,38 @@
+# Mobile WCF example against the local demo service:  service-test-mcp --demo-server  (port 8899)
+#
+# In reality test and prep have different hosts; the one demo stands in for both with a path prefix (/test, /prep).
+# The traffic importer finds the environment of a log from the start of its URLs (host + base path).
+default_environment: test
+
+environments:
+  test:
+    description: Test ortami (demo)
+    allow_mutating: true           # test ortamlarinda para transferi dahil her sey acik
+    variables:
+      otp: "123456"                # test ortaminda sabit OTP
+  prep:
+    description: Preprod ortami (demo)
+    allow_mutating: true
+    variables:
+      otp: "123456"
+
+services:
+  MobilBankacilik:
+    protocol: rest
+    description: Mobil bankacilik WCF servisleri (webHttpBinding, JSON)
+    base_url:
+      test: http://127.0.0.1:8899/test/MobileBranch
+      prep: http://127.0.0.1:8899/prep/MobileBranch
+    profile: profiles/mobil.profile.yaml
+
+# Persona leases (one login per test customer at a time). Default: %USERPROFILE%\.service-test-mcp\locks.
+# A shared folder makes leases visible to every machine that uses the same test customers:
+# locks:
+#   dir: \\dosya-sunucusu\qa\service-test-locks
+#   wait_s: 30
+
+masking:
+  enabled: true
+  keep_last: 4
+
+scenario_root: .

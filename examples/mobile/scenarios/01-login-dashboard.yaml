@@ -1,0 +1,37 @@
+id: mobil-login-dashboard
+title: Otomatik login (uygulama + musteri + OTP) ve ana sayfa
+tags: [smoke, mobil]
+persona: bireysel_standart
+steps:
+  - name: Uygulama on verisi (oturumsuz)
+    service: MobilBankacilik
+    operation: ApplicationPreData
+    assert:
+      - success: true
+      - path: $.Value.MinVersion
+        matches: "^\\d+\\.\\d+\\.\\d+$"
+
+  - name: Ana sayfa
+    service: MobilBankacilik
+    operation: GetDashBoardMobileInformation
+    params:
+      MainResourceCode: DASHBOARD
+    assert:
+      - success: true
+      - path: $.Value.Accounts
+        count: { gte: 1 }
+      - path: $.Value.Accounts[*].Iban
+        matches: "^TR\\d{24}$"
+        all: true
+      - path: $.Value.Accounts[*].Balance
+        type: number
+        all: true
+      - responseTimeMs: { lt: 3000 }
+
+  - name: Profil bilgileri (ayni oturum)
+    service: MobilBankacilik
+    operation: GetProfileBasics
+    assert:
+      - success: true
+      - path: $.Value.CustomerId
+        equals: "{{persona.CustomerId}}"
