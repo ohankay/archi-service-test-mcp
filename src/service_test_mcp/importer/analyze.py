@@ -6,7 +6,7 @@ The flow (all deterministic, inside the MCP server):
 2. find the service and environment of each exchange from its URL: the host and base path are matched against
    ``base_url`` of the profile services in services.yaml (an unknown host is reported, never guessed),
 3. split each request body into the profile's envelope and the operation's own params,
-4. classify fields: credentials (never written anywhere), persona fields (test customer data), values that came
+4. classify fields: credentials (never written anywhere), test_customer fields (test customer data), values that came
    from an earlier response (session / chaining dependencies), and the rest (user input),
 5. infer request and response JSON schemas, merge them with the existing catalog entry and report what changed,
 6. propose a kind (read / mutating / auth / unknown) and whether the operation needs a session (it does when the
@@ -66,7 +66,7 @@ class OpAccumulator:
     last_params: dict[str, Any] = field(default_factory=dict)
     environments: set[str] = field(default_factory=set)
     with_session: int = 0                  # samples that carried a value issued by an earlier login response
-    persona_fields: set[str] = field(default_factory=set)
+    test_customer_fields: set[str] = field(default_factory=set)
     credential_fields: set[str] = field(default_factory=set)
     dependencies: dict[str, Counter] = field(default_factory=lambda: defaultdict(Counter))
 
@@ -301,8 +301,8 @@ class Importer:
                     continue
                 if is_secret(key):
                     acc.credential_fields.add(key)
-                if key in profile.persona_fields:
-                    acc.persona_fields.add(key)
+                if key in profile.test_customer_fields:
+                    acc.test_customer_fields.add(key)
             if carried_session:
                 acc.with_session += 1
             clean = {k: v for k, v in body.items() if k not in envelope_keys and not is_secret(k)}
@@ -361,8 +361,8 @@ class Importer:
             entry.update(kind=new.kind, session=new.session, path=new.path)
             if new.kind == "unknown":
                 entry["kind_note"] = "could not classify: set kind (read / mutating / auth) in the catalog"
-            if acc.persona_fields:
-                entry["persona_fields"] = sorted(acc.persona_fields)
+            if acc.test_customer_fields:
+                entry["test_customer_fields"] = sorted(acc.test_customer_fields)
             if acc.credential_fields:
                 entry["credential_fields"] = sorted(acc.credential_fields)
             if acc.dependencies:
@@ -403,8 +403,8 @@ class Importer:
     def _example(params: dict[str, Any], profile: Profile) -> dict[str, Any]:
         out: dict[str, Any] = {}
         for k, v in params.items():
-            if k in profile.persona_fields:
-                out[k] = "{{persona.%s}}" % k
+            if k in profile.test_customer_fields:
+                out[k] = "{{test_customer.%s}}" % k
             else:
                 out[k] = v
         return json_ready(out)
@@ -436,12 +436,12 @@ class Importer:
         stem = re.sub(r"[^A-Za-z0-9]+", "-", Path(source).stem).strip("-").lower() or "log"
         scenario: dict[str, Any] = {"id": f"{stem}-akis", "title": f"{service}: {source} kaydindan uretilen akis",
                                     "tags": ["draft", "from-log"], "source_log": source}
-        if profile.default_persona:
-            scenario["persona"] = profile.default_persona
+        if profile.default_test_customer:
+            scenario["test_customer"] = profile.default_test_customer
         scenario["steps"] = steps
         header = ("# Draft scenario generated from a traffic log. Login is done by the profile, so login steps are\n"
-                  "# not listed. Masked values (***) and personal data must be replaced with {{env.x}} / persona\n"
-                  "# fields before this is used as a regression test.\n")
+                  "# not listed. Masked values (***) and personal data must be replaced with {{env.x}} /\n"
+                  "# test_customer fields before this is used as a regression test.\n")
         return header + yaml.safe_dump(scenario, allow_unicode=True, sort_keys=False, width=120)
 
     def _write_scenario(self, scenario_path: str, text: str) -> str:

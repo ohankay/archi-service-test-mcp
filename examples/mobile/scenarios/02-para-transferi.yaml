@@ -1,7 +1,7 @@
 id: mobil-para-transferi
 title: IBAN'a para transferi ve gecersiz tutar (negatif)
 tags: [transfer, mobil]
-persona: bireysel_havuz          # bakiye degistiren testler havuzdan musteri kullanir
+test_customer: bireysel_havuz          # bakiye degistiren testler havuzdan musteri kullanir
 steps:
   - name: Transfer oncesi bakiye
     service: MobilBankacilik

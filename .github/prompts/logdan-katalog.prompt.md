@@ -11,4 +11,4 @@ tools: ['service-test/*', 'edit']
 3. `unknown` operasyonlar icin read / mutating / auth karari iste.
 4. Onay verirsem `apply=true` ile katalogu yaz, sonra kararlarimi katalog dosyasina isle.
 5. Istersem `scenario_path` ile `scenarios/_taslak-<ad>.yaml` taslak senaryosunu yaz; maskeli degerleri (`***`)
-   `{{env.x}}` / persona alanlariyla degistir, `validate_scenario` ve `run_scenario` ile dene.
+   `{{env.x}}` / test_customer alanlariyla degistir, `validate_scenario` ve `run_scenario` ile dene.

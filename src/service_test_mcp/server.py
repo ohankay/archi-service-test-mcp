@@ -26,21 +26,21 @@ INSTRUCTIONS = """\
 Service testing tools for WCF/SOAP and REST services on TEST environments. Never use a terminal, PowerShell, curl or
 Invoke-WebRequest for service calls - use these tools.
 - Start with list_services. Services with a profile (e.g. mobile banking WCF) are called by OPERATION NAME:
-  list_operations -> describe_operation -> call_operation(service, operation, params, persona). Login, OTP, session
-  renewal, the request envelope and headers are done by the server; never send session keys or tokens yourself.
-  persona = named test customer (list_test_customers); one login per customer at a time, the server enforces it.
+  list_operations -> describe_operation -> call_operation(service, operation, params, test_customer). Login, OTP,
+  session renewal, the request envelope and headers are done by the server; never send session keys or tokens.
+  test_customer = named test customer (list_test_customers); one login per customer at a time, the server enforces it.
 - Other services: describe_service / describe_operation, then soap_call / rest_call. Use extract={"token":
   "$.Token"} to keep values as session variables and send them later as {{token}}.
 - Traffic logs (mobile app logs, HAR): import_traffic_log(path) - the server reads and masks the file, you get a
   summary. It is a preview; after the user approves call it again with apply=true to update the catalog.
 - check_last_response evaluates assertions on the last call deterministically.
-- Repeatable tests are YAML scenario files. Profile steps: service + operation + params (+ persona); others:
+- Repeatable tests are YAML scenario files. Profile steps: service + operation + params (+ test_customer); others:
   operation/params (SOAP) or method/path (REST); assert, extract. validate_scenario, then run_scenario /
   run_test_suite.
 - Assertions: success (profile business rule), fault, status, responseTimeMs, header, schema, or path (JSONPath) +
   one operator: equals, notEquals, equalsIgnoreCase, contains, notContains, startsWith, endsWith, matches, in, notIn,
   exists, notEmpty, isNull, type, numeric {gt,gte,lt,lte,eq,ne,between,tolerance}, count, length, schema.
-- Variables: {{name}}, {{env.var}}, {{secret.STM_SECRET_X}}, {{persona.Field}}, {{$uuid}}, {{$today}}, {{$now}},
+- Variables: {{name}}, {{env.var}}, {{secret.STM_SECRET_X}}, {{test_customer.Field}}, {{$uuid}}, {{$today}}, {{$now}},
   {{$date(+1)}}, {{$random_digits(8)}}.
 - Sensitive values in responses are masked (***1234); assertions and extract use the real values.
 - Mutating operations run only where the environment allows them. Production environments are refused.
@@ -289,21 +289,22 @@ async def list_operations(service: str, search: str | None = None, kind: str | N
 
 @mcp.tool(annotations=CALL)
 async def call_operation(service: str, operation: str, params: dict[str, Any] | None = None,
-                         persona: str | None = None, environment: str | None = None,
+                         test_customer: str | None = None, environment: str | None = None,
                          extract: dict[str, str] | None = None, assertions: list[dict[str, Any]] | None = None,
                          fresh_session: bool = False) -> str:
     """Call an operation of a profile service by name. Pass only the operation's own params (see
-    describe_operation); the server adds the envelope and headers, logs in with the persona (test customer) when
+    describe_operation); the server adds the envelope and headers, logs in with the test customer when
     needed, renews the session and retries once if the server ended it. Values may use {{variables}} and
-    {{persona.Field}}. persona: name from list_test_customers (default: the profile's default).
-    extract = {name: JSONPath} saves session variables; assertions = optional list checked on the response. fresh_session forces a new login.
+    {{test_customer.Field}}. test_customer: name from list_test_customers (default: the profile's default).
+    extract = {name: JSONPath} saves session variables; assertions = optional list checked on the response.
+    fresh_session forces a new login.
     Returns business success/errors, status, body (masked), elapsed_ms."""
     def run() -> dict[str, Any]:
         e = engine()
         ctx = _context(e, environment)
-        ctx.keep = ("persona", "session")
+        ctx.keep = ("test_customer", "session")
         rendered = ctx.render(params) if params else None
-        result = e.profile_call(service, operation, rendered, persona, environment, fresh_session=fresh_session)
+        result = e.profile_call(service, operation, rendered, test_customer, environment, fresh_session=fresh_session)
         _last.clear()
         _last.update(result)
         out = {**e.result_view(result), **e.view(_extract(result, extract))}
@@ -317,8 +318,8 @@ async def call_operation(service: str, operation: str, params: dict[str, Any] | 
 
 @mcp.tool(annotations=READ)
 async def list_test_customers(service: str, environment: str | None = None) -> str:
-    """Test customers (personas) of a profile service in an environment, the live sessions of this server and
-    personas busy elsewhere (another VS Code window, agent or CI holds the login)."""
+    """Test customers of a profile service in an environment, the live sessions of this server and
+    test_customers busy elsewhere (another VS Code window, agent or CI holds the login)."""
     def run() -> dict[str, Any]:
         e = engine()
         runtime = e.profile(service)
@@ -329,15 +330,15 @@ async def list_test_customers(service: str, environment: str | None = None) -> s
 
 @mcp.tool(annotations=CALL)
 async def end_sessions(service: str | None = None, environment: str | None = None,
-                       persona: str | None = None) -> str:
-    """Log out and release persona leases so others can use those test customers. Without arguments: all
+                       test_customer: str | None = None) -> str:
+    """Log out and release test_customer leases so others can use those test customers. Without arguments: all
     sessions of this server."""
     def run() -> dict[str, Any]:
         e = engine()
         names = [e.profile(service).service] if service else list(e.profiles)
         ended = []
         for name in names:
-            ended += [{"service": name, **x} for x in e.profiles[name].end_sessions(environment, persona)]
+            ended += [{"service": name, **x} for x in e.profiles[name].end_sessions(environment, test_customer)]
         return {"ended": ended}
     return await _call(run)
 
@@ -347,8 +348,8 @@ async def import_traffic_log(path: str | None = None, content: str | None = None
                              environment: str | None = None, apply: bool = False,
                              scenario_path: str | None = None, format: str | None = None) -> str:
     """Read a traffic log (mobile app transaction log or HAR) ON THE SERVER and propose catalog changes: new /
-    changed / unchanged operations, kinds, session need, persona and credential fields, values chained from earlier
-    responses, and a draft scenario of the flow. The raw log never reaches you; values are masked.
+    changed / unchanged operations, kinds, session need, test customer and credential fields, values chained from
+    earlier responses, and a draft scenario of the flow. The raw log never reaches you; values are masked.
     Service and environment are found from the URLs (give them only if the host is not in services.yaml).
     apply=false (default) is a preview - show it to the user; apply=true writes the catalog.
     scenario_path writes the draft scenario YAML to a file (under scenario_root)."""

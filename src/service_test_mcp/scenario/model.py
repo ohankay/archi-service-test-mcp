@@ -27,9 +27,9 @@ A file holds one scenario, or several under ``scenarios:``::
           - status: 200
 
 Profile services (``profile:`` in services.yaml) are called by operation name; login, session, envelope and
-headers come from the profile. ``persona`` picks the test customer (scenario-wide or per step)::
+headers come from the profile. ``test_customer`` picks the test customer (scenario-wide or per step)::
 
-    persona: bireysel_standart
+    test_customer: bireysel_standart
     steps:
       - name: Dashboard
         service: MobilBankacilik
@@ -51,13 +51,13 @@ from .asserts import validate_assertion
 from .template import placeholders
 
 SCENARIO_KEYS = {"id", "title", "description", "tags", "environment", "variables", "steps", "owner", "priority",
-                 "persona", "source_log"}
+                 "test_customer", "source_log"}
 STEP_KEYS = {"name", "service", "protocol", "operation", "params", "input", "method", "path", "query", "headers",
              "body", "body_text", "form", "assert", "assertions", "extract", "continue_on_failure", "skip",
-             "description", "persona", "fresh_session"}
+             "description", "test_customer", "fresh_session"}
 SOAP_ONLY = {"operation", "params", "input"}
 REST_ONLY = {"method", "path", "query", "body", "body_text", "form"}
-PROFILE_ONLY = {"persona", "fresh_session"}
+PROFILE_ONLY = {"test_customer", "fresh_session"}
 PROTOCOLS = ("soap", "rest", "profile")
 
 
@@ -85,7 +85,7 @@ class Scenario:
     steps: list[Step]
     tags: list[str] = field(default_factory=list)
     environment: str | None = None
-    persona: str | None = None
+    test_customer: str | None = None
     variables: dict[str, Any] = field(default_factory=dict)
     description: str = ""
     source: str | None = None
@@ -191,7 +191,7 @@ def parse_scenario(data: Any, protocols: dict[str, str] | None = None, source: s
     for step in steps:
         for expr in placeholders(step.raw):
             root = expr.split(".")[0].split("[")[0]
-            if expr.startswith(("$", "env.", "secret.", "persona.", "session.")) or root in known:
+            if expr.startswith(("$", "env.", "secret.", "test_customer.", "session.")) or root in known:
                 continue
             problems.append(f"step '{step.name}': variable '{{{{{expr}}}}}' is not defined before this step "
                             "(variables / earlier extract)")
@@ -200,7 +200,7 @@ def parse_scenario(data: Any, protocols: dict[str, str] | None = None, source: s
         raise ScenarioError([f"[{sid or source or 'scenario'}] {p}" for p in problems])
     return Scenario(id=sid, title=str(data.get("title") or sid), steps=steps, tags=[str(t) for t in tags],
                     environment=data.get("environment"), variables=variables,
-                    persona=str(data["persona"]) if data.get("persona") else None,
+                    test_customer=str(data["test_customer"]) if data.get("test_customer") else None,
                     description=str(data.get("description") or ""), source=source, base_dir=base_dir)
 
 

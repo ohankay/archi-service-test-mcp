@@ -24,8 +24,8 @@ request:
     LanguageId: 1
     SessionType: 1
     IsDeviceRooted: false
-  session_envelope:                          # yalnizca bir persona ile oturum acikken eklenir
-    OwnerCustomerId: "{{persona.CustomerId}}"
+  session_envelope:                          # yalnizca bir test musterisiyle oturum acikken eklenir
+    OwnerCustomerId: "{{test_customer.CustomerId}}"
   headers: {}                                # header detaylari henuz acik konu; sablon burada tanimlanacak
 
 success:                                     # is seviyesinde basari: HTTP 200 + Success: true
@@ -41,25 +41,25 @@ session:
   defaults: { SessionKey: "" }
   login:
     - operation: LoginForMobileBranch        # uygulama seviyesi giris
-      params: { UserId: "{{persona.UserId}}" }
+      params: { UserId: "{{test_customer.UserId}}" }
       extract: { SessionKey: $.SessionKey }
     - operation: InitialLogin                # musteri girisi (yeni oturum anahtari)
       params:
         ExtUSessionKey: ""
-        CustomerId: "{{persona.CustomerId}}"
-        ActivationToken: "{{persona.ActivationToken}}"
+        CustomerId: "{{test_customer.CustomerId}}"
+        ActivationToken: "{{test_customer.ActivationToken}}"
       extract: { SessionKey: $.SessionKey, AuthenticationToken: $.AuthenticationToken }
     - operation: OtpLoginCompleteNew         # test ortaminda OTP sabit
       params:
         GeneratedOtp: "{{env.otp}}"
-        CustomerId: "{{persona.CustomerId}}"
+        CustomerId: "{{test_customer.CustomerId}}"
   logout: { operation: Logout }
   expired_when:                              # sunucu oturumu bitirdi -> yeniden login + bir kez tekrar
     - path: $.Results[*].ErrorCode
       contains: SESSION_EXPIRED
   retry_mutating_on_expired: false           # para hareketi otomatik tekrarlanmaz
 
-personas:
+test_customers:
   identity: [CustomerId]                     # paralel login kilidi bu alana gore
   default: bireysel_standart
 
@@ -72,7 +72,7 @@ environments:
       app_name: IOS MobileBranch
       app_version: "7.2.5"
       hedef_iban: TR320010009999901234567890
-    personas:
+    test_customers:
       bireysel_standart:
         description: Standart bireysel musteri
         CustomerId: 1000001
@@ -99,8 +99,8 @@ environments:
       app_name: IOS MobileBranch
       app_version: "7.2.5"
       hedef_iban: TR320010009999901234567890
-    personas:
-      bireysel_standart:                     # ayni persona adi, ortama ozgu musteri
+    test_customers:
+      bireysel_standart:                     # ayni test musterisi adi, ortama ozgu musteri
         CustomerId: 2000001
         UserId: P1-d4a2
         ActivationToken: ACT-2000001-m3
@@ -119,7 +119,7 @@ environments:
 noise: [InsertClientLog, HasUnreadNotification*, GetCusExpMeasureDefinitions*]
 
 importer:
-  persona_fields: [CustomerId, OwnerCustomerId, UserId, ActivationToken]
+  test_customer_fields: [CustomerId, OwnerCustomerId, UserId, ActivationToken]
   secret_fields: [ExtUPassword, GeneratedOtp, StsLoginOtp, ActivationToken]
 
 catalog: mobil.catalog.yaml

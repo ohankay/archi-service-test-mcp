@@ -5,7 +5,7 @@ tools: ['service-test/*', 'edit']
 ---
 `${input:servis}` servisinin `${input:operasyon}` operasyonunu `${input:ortam}` ortaminda test et:
 
-1. `describe_operation` ile parametreleri, turunu ve yanit semasini incele; `list_test_customers` ile uygun personayi sec.
+1. `describe_operation` ile parametreleri, turunu ve yanit semasini incele; `list_test_customers` ile uygun test musterisini sec.
 2. `call_operation` ile bir kez dene; yaniti ozetle.
 3. `scenarios/` altina YAML senaryo yaz: bir pozitif durum (`success: true` ve is kurali assertion'lari) ve en az iki
    negatif durum (gecersiz / eksik parametre, sinir degerleri; beklenen `success: false` ve hata kodu).

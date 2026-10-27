@@ -20,11 +20,11 @@ Yeni bir servis için yeni bir MCP yazılmaz. Sırasıyla şunlar yapılır:
 3. **Profil dosyasını yazın.** `examples/mobile/profiles/mobil.profile.yaml` dosyasını kopyalayıp şu alanları uyarlayın:
    - `request.url`: Operasyonun URL'deki yeri. Örneğin `"{path}/{operation}"` ya da `"v1/{operation}"`. `{path}` katalogdaki yoldur.
    - `request.method`: Varsayılan HTTP metodu. Katalogda operasyon bazında değiştirilebilir.
-   - `request.envelope` / `session_envelope` / `headers`: Her isteğe eklenecek alanlar. Kullanılabilecek değişkenler `{{operation}}`, `{{session.X}}`, `{{persona.X}}`, `{{env.X}}` ve `{{secret.STM_SECRET_X}}`.
+   - `request.envelope` / `session_envelope` / `headers`: Her isteğe eklenecek alanlar. Kullanılabilecek değişkenler `{{operation}}`, `{{session.X}}`, `{{test_customer.X}}`, `{{env.X}}` ve `{{secret.STM_SECRET_X}}`.
    - `success`, `error_paths`: İş seviyesinde başarı kuralı ve hata mesajlarının yolları.
    - `session`: Login adımları ve bunların `extract` alanları, `ttl_s`, `expired_when`, `logout`. Login gerektirmeyen servislerde `login` listesini boş bırakın.
-   - `personas` ve `environments.<env>.personas`: Test müşterileri ya da kullanıcıları. Gerekmiyorsa boş bırakın.
-   - `noise`, `importer.persona_fields`, `importer.secret_fields`: Log importu için.
+   - `test_customers` ve `environments.<env>.test_customers`: Test müşterileri ya da kullanıcıları. Gerekmiyorsa boş bırakın.
+   - `noise`, `importer.test_customer_fields`, `importer.secret_fields`: Log importu için.
    - `catalog`: Katalog dosyasının yolu. Başlangıçta boş olabilir: `operations: {}`.
 4. **Kataloğu doldurun.** Uygulamanın ya da tarayıcının (HAR) logunu ajana verin: `import_traffic_log(path)`. Önizlemeyi inceleyin, `apply=true` ile yazın. Ardından `kind` alanı `unknown` kalan operasyonları sınıflandırın ve açıklama ekleyin.
 5. **Deneyin.** `call_operation` ile tek çağrı yapın, sonra senaryo yazıp `run_test_suite --env test` ile koşun.

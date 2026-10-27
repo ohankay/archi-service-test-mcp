@@ -1,4 +1,4 @@
-"""Persona leases: a test customer is logged in by one holder at a time.
+"""Test customer leases: a test customer is logged in by one holder at a time.
 
 Parallel logins with the same customer are not allowed (a second login ends the first session on the server), and
 the holders are separate processes - VS Code windows, standalone agents, CI runs - possibly on separate machines. A
@@ -132,5 +132,5 @@ class FileLeaseStore:
         current = self._read(self._paths(key)[0])
         if not current or float(current.get("expires", 0)) <= time.time():
             return None
-        return {"owner": current.get("owner"), "persona": current.get("persona"),
+        return {"owner": current.get("owner"), "test_customer": current.get("test_customer"),
                 "expires_in_s": round(float(current["expires"]) - time.time())}

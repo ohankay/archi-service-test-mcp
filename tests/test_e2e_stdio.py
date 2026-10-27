@@ -84,7 +84,7 @@ def test_stdio_end_to_end(tmp_path, demo_port):
 
 
 def test_stdio_mobile_profile(tmp_path, demo_port):
-    """VS Code's view of the mobile profile: catalog, call by operation name, personas, log import."""
+    """VS Code's view of the mobile profile: catalog, call by operation name, test_customers, log import."""
     from service_test_mcp import demo_mobile
 
     demo_mobile.reset()
@@ -103,21 +103,22 @@ def test_stdio_mobile_profile(tmp_path, demo_port):
         res = await _call(s, "call_operation", service="MobilBankacilik", operation="GetDashBoardMobileInformation",
                           params={"MainResourceCode": "DASHBOARD"}, extract={"bakiye": "$.Value.Accounts[0].Balance"},
                           assertions=[{"success": True}, {"path": "$.Value.Accounts", "count": 1}])
-        assert res["success"] is True and res["assertions_passed"] is True and res["persona"] == "bireysel_standart"
+        assert res["success"] is True and res["assertions_passed"] is True
+        assert res["test_customer"] == "bireysel_standart"
         assert res["body"]["Value"]["Accounts"][0]["Iban"].endswith("1326") and "TR33" not in json.dumps(res)
         res = await _call(s, "call_operation", service="MobilBankacilik", operation="ExecuteMoneyTransfer",
                           params={"ToIban": "{{env.hedef_iban}}", "Amount": "1.00", "Description": "e2e",
                                   "TransferType": 1})
         assert res["success"] is True and res["business"] == {"success": True}
         res = await _call(s, "list_test_customers", service="MobilBankacilik", environment="test")
-        assert res["sessions"][0]["persona"] == "bireysel_standart" and res["sessions"][0]["logins"] == 1
+        assert res["sessions"][0]["test_customer"] == "bireysel_standart" and res["sessions"][0]["logins"] == 1
         res = await _call(s, "import_traffic_log", path=str(log))
         assert res["applied"] is False and res["services"][0]["summary"] == {"unchanged": 8}
         assert demo_mobile.APP_PASSWORD not in json.dumps(res)
         res = await _call(s, "run_test_suite", path=str(cfg.parent / "scenarios"), environment="prep")
         assert res["summary"]["passed"] == 3, res
         res = await _call(s, "end_sessions")
-        assert {x["persona"] for x in res["ended"]} >= {"bireysel_standart"}
+        assert {x["test_customer"] for x in res["ended"]} >= {"bireysel_standart"}
         assert all(x["logged_out"] for x in res["ended"])
     asyncio.run(_session(clean_env(STM_CONFIG=str(cfg), STM_HOME=str(tmp_path / "home")), scenario))
     assert demo_mobile.STATS["ended_by_parallel_login"] == 0

@@ -59,11 +59,11 @@ services:
   #     preprod: https://MOBIL-PREPROD/BOA.Integration.MobileBranch
   #   profile: profiles/mobil.profile.yaml      # bu dosyaya gore goreli yol
 
-# Persona kilitleri (ayni test musterisiyle paralel login yok). Varsayilan: %USERPROFILE%\.service-test-mcp\locks
+# Test musterisi kilitleri (ayni test musterisiyle paralel login yok). Varsayilan: %USERPROFILE%\.service-test-mcp\locks
 # Ayni musterileri birden cok makine kullaniyorsa ortak bir klasor verin:
 # locks:
 #   dir: \\dosya-sunucusu\qa\service-test-locks
-#   wait_s: 30                    # persona doluysa bu kadar bekle
+#   wait_s: 30                    # test musterisi doluysa bu kadar bekle
 
 masking:
   enabled: true

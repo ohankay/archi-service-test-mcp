@@ -201,7 +201,7 @@ class ServiceConfig:
     mutating_operations: list[str] = field(default_factory=list)
     allowed_hosts: list[str] = field(default_factory=list)
     environments: list[str] | None = None  # restrict to these environments
-    profile: str | None = None             # REST only: profile file (operation catalog, envelope, session, personas)
+    profile: str | None = None             # REST only: profile file (catalog, envelope, session, test customers)
 
     KEYS = {"protocol", "description", "wsdl", "endpoint", "base_url", "openapi", "auth", "auth_overrides",
             "headers", "service_name", "port_name", "ws_addressing", "timeout_s", "read_only",
@@ -291,7 +291,7 @@ class ServiceConfig:
 
 @dataclass
 class LocksConfig:
-    """Persona leases: one login per test customer at a time, across processes (VS Code windows, agents, CI).
+    """Test customer leases: one login per test customer at a time, across processes (VS Code windows, agents, CI).
 
     ``dir`` may be a shared folder (e.g. a network share) so that several machines see the same leases.
     """

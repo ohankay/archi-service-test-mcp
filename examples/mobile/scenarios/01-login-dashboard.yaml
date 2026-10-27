@@ -1,7 +1,7 @@
 id: mobil-login-dashboard
 title: Otomatik login (uygulama + musteri + OTP) ve ana sayfa
 tags: [smoke, mobil]
-persona: bireysel_standart
+test_customer: bireysel_standart
 steps:
   - name: Uygulama on verisi (oturumsuz)
     service: MobilBankacilik
@@ -34,4 +34,4 @@ steps:
     assert:
       - success: true
       - path: $.Value.CustomerId
-        equals: "{{persona.CustomerId}}"
+        equals: "{{test_customer.CustomerId}}"

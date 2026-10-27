@@ -137,8 +137,8 @@ Kurulum burada biter.
 | `is marked as mutating` | Operasyon `mutating_operations` listesinde. Gerçekten gerekiyorsa yalnızca test ortamında `allow_mutating: true` yapın. |
 | `is not in the catalog` | Profil servisinin kataloğunda bu operasyon yok. Operasyonun geçtiği bir logu `import_traffic_log` ile içe aktarın. |
 | `is unknown (not classified ...)` | Katalogda `kind: unknown`. Ortam `allow_mutating: false` ise çağrılamaz; katalogda `read` / `mutating` / `auth` olarak işaretleyin. |
-| `Persona '...' is in use` | Bu test müşterisiyle başka bir pencere, ajan veya CI şu an login. Paralel login kapalıdır. `end_sessions` ile kendi oturumlarınızı kapatın, havuza müşteri ekleyin ya da başka persona kullanın. Kilit, sahibi kapanınca en geç session süresi (5 dk) sonunda düşer. |
-| `login step ... failed` | Login adımlarından biri `Success: false` döndü. Persona bilgilerini, OTP'yi ve uygulama şifresini (`STM_SECRET_...`) kontrol edin. |
+| `Test customer '...' is in use` | Bu test müşterisiyle başka bir pencere, ajan veya CI şu an login. Paralel login kapalıdır. `end_sessions` ile kendi oturumlarınızı kapatın, havuza müşteri ekleyin ya da başka bir test müşterisi kullanın. Kilit, sahibi kapanınca en geç session süresi (5 dk) sonunda düşer. |
+| `login step ... failed` | Login adımlarından biri `Success: false` döndü. Test müşterisi bilgilerini, OTP'yi ve uygulama şifresini (`STM_SECRET_...`) kontrol edin. |
 | Sunucu başlıyor ama araçlar görünmüyor | Chat modu **Agent** olmalı. Copilot Business/Enterprise'da "MCP servers in Copilot" politikası açık olmalı. |
 | `spawn ... ENOENT` | `command` yolu yanlış; `%USERPROFILE%\.service-test-mcp\Scripts\service-test-mcp.exe` var mı kontrol edin. |
 

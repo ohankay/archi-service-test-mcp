@@ -102,19 +102,19 @@ class Runner:
         try:
             svc, _ = engine.resolve(step.service, env)
             if svc.name in engine.profiles:
-                ctx.keep = ("persona", "session")
+                ctx.keep = ("test_customer", "session")
                 try:
                     params = ctx.render(raw.get("params", raw.get("input")) or {})
                 finally:
                     ctx.keep = ()
-                persona = ctx.render(raw.get("persona") or scenario.persona)
+                test_customer = ctx.render(raw.get("test_customer") or scenario.test_customer)
                 entry["operation"] = raw.get("operation")
-                if persona:
-                    entry["persona"] = persona
+                if test_customer:
+                    entry["test_customer"] = test_customer
                 entry["request"] = params
-                result = engine.profile_call(svc.name, str(raw.get("operation")), params, persona, env,
+                result = engine.profile_call(svc.name, str(raw.get("operation")), params, test_customer, env,
                                              origin="scenario", fresh_session=bool(raw.get("fresh_session")))
-                ctx.variables["persona"] = engine.profiles[svc.name].persona_values(env, persona)
+                ctx.variables["test_customer"] = engine.profiles[svc.name].test_customer_values(env, test_customer)
             elif svc.protocol == "soap":
                 params = ctx.render(raw.get("params", raw.get("input")) or {})
                 entry["operation"] = raw.get("operation")

@@ -100,7 +100,7 @@ def test_import_preview_apply_and_reimport(mobile):
     assert ops["ApplicationPreData"]["session"] is False and ops["ApplicationPreData"]["kind"] == "unknown"
     assert ops["LoginForMobileBranch"]["kind"] == "auth" and ops["LoginForMobileBranch"]["session"] is False
     assert ops["OtpLoginCompleteNew"]["credential_fields"] == ["GeneratedOtp"]
-    assert "UserId" in ops["LoginForMobileBranch"]["persona_fields"]
+    assert "UserId" in ops["LoginForMobileBranch"]["test_customer_fields"]
     # the app sends the session key of the latest login (the LoginForMobileBranch one only reached noise calls)
     assert {"field": "ExtUSessionKey", "from": ["InitialLogin $.SessionKey"]} in rep["envelope_values_from_responses"]
     assert "steps:" in rep["draft_scenario"] and "LoginForMobileBranch" not in rep["draft_scenario"]
@@ -118,7 +118,7 @@ def test_import_preview_apply_and_reimport(mobile):
         assert secret not in written
     cat = mobile.profiles[SVC].profile.catalog
     assert cat.get("GetDashBoardMobileInformation").params == {"MainResourceCode": "DASHBOARD"}
-    assert cat.get("InitialLogin").params["CustomerId"] == "{{persona.CustomerId}}"
+    assert cat.get("InitialLogin").params["CustomerId"] == "{{test_customer.CustomerId}}"
 
     # hand edits survive a re-import; the same log is "unchanged"
     cat.operations["ApplicationPreData"].kind = "read"

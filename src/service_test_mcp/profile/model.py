@@ -10,8 +10,8 @@ A REST service in ``services.yaml`` points to a profile file with ``profile: pro
         MethodName: "{{operation}}"
         ExtUSessionKey: "{{session.SessionKey}}"
         DeviceId: "{{env.device_id}}"
-      session_envelope:                   # added only when a persona is logged in (may use {{persona.x}})
-        OwnerCustomerId: "{{persona.CustomerId}}"
+      session_envelope:                   # added only when a test customer is logged in (may use {{test_customer.x}})
+        OwnerCustomerId: "{{test_customer.CustomerId}}"
       headers: {}                         # header templates (same variables as the envelope)
     success:                              # business success rule = assertions that must all pass
       - status: { lt: 400 }
@@ -25,26 +25,26 @@ A REST service in ``services.yaml`` points to a profile file with ``profile: pro
       defaults: { SessionKey: "" }        # session.* values before login
       login:                              # steps; 'extract' saves session.* values
         - operation: LoginForMobileBranch
-          params: { UserId: "{{persona.UserId}}" }
+          params: { UserId: "{{test_customer.UserId}}" }
           extract: { SessionKey: $.SessionKey }
       logout: { operation: Logout }
       expired_when:                       # all must pass => the server says the session is gone
         - path: $.Results[*].ErrorCode
           in: [SESSION_EXPIRED]
       retry_mutating_on_expired: false
-    personas:
+    test_customers:
       identity: [CustomerId]              # fields that identify a test customer (used for the login lease)
       default: bireysel
     environments:                         # everything that differs per environment
       test:
         variables: { device_id: "..." }   # merged over services.yaml environment variables ({{env.x}})
-        personas:
+        test_customers:
           bireysel: { CustomerId: 111, UserId: "..." }
           havuz: { pool: [ { CustomerId: 1 }, { CustomerId: 2 } ] }
           yeni: { source: { operation: GetTestCustomer, params: {...}, extract: { CustomerId: $.Value.Id } } }
     noise: [InsertClientLog, "HasUnread*"]   # ignored by the traffic importer
     importer:
-      persona_fields: [CustomerId, OwnerCustomerId, UserId]
+      test_customer_fields: [CustomerId, OwnerCustomerId, UserId]
       secret_fields: [ExtUPassword]
     catalog: mobil.catalog.yaml           # operation catalog (written by import_traffic_log, edited by people)
     hooks: hooks.py:MobileHooks           # optional Python class for logic YAML can not express
@@ -63,7 +63,7 @@ from ..config import ConfigError, _bool, _check_keys, _number, read_structured_f
 from ..scenario.asserts import validate_assertion
 
 OPERATION_KINDS = ("read", "mutating", "auth", "unknown")
-PROFILE_KEYS = {"name", "description", "request", "success", "error_paths", "session", "personas", "environments",
+PROFILE_KEYS = {"name", "description", "request", "success", "error_paths", "session", "test_customers", "environments",
                 "noise", "importer", "catalog", "hooks"}
 OPERATION_KEYS = {"path", "kind", "session", "description", "tags", "params", "request_schema", "response_schema",
                   "seen", "method"}
@@ -91,7 +91,7 @@ def _assertions(where: str, value: Any) -> list[dict[str, Any]]:
 
 @dataclass
 class StepSpec:
-    """A login / logout / persona-source step: a catalog operation with params and extract."""
+    """A login / logout / test_customer-source step: a catalog operation with params and extract."""
     operation: str
     params: dict[str, Any] = field(default_factory=dict)
     extract: dict[str, str] = field(default_factory=dict)
@@ -144,7 +144,7 @@ class SessionSpec:
 
 
 @dataclass
-class PersonaSpec:
+class CustomerSpec:
     """One named test customer: fixed values, a pool of interchangeable customers, or an API that hands one out."""
     name: str
     pool: list[dict[str, Any]] = field(default_factory=list)
@@ -152,22 +152,22 @@ class PersonaSpec:
     description: str = ""
 
     @classmethod
-    def parse(cls, where: str, name: str, data: Any) -> "PersonaSpec":
+    def parse(cls, where: str, name: str, data: Any) -> "CustomerSpec":
         data = _mapping(where, data)
         description = str(data.pop("description", "") or "")
         if "source" in data:
             if set(data) != {"source"}:
-                raise ConfigError(f"{where}: a 'source' persona has no other fields (besides description)")
+                raise ConfigError(f"{where}: a 'source' test_customer has no other fields (besides description)")
             return cls(name=name, source=StepSpec.parse(f"{where}.source", data["source"]), description=description)
         if "pool" in data:
             if set(data) != {"pool"}:
-                raise ConfigError(f"{where}: a 'pool' persona has no other fields (besides description)")
+                raise ConfigError(f"{where}: a 'pool' test_customer has no other fields (besides description)")
             pool = data["pool"]
             if not isinstance(pool, list) or not pool or not all(isinstance(p, Mapping) for p in pool):
                 raise ConfigError(f"{where}.pool must be a non-empty list of mappings")
             return cls(name=name, pool=[dict(p) for p in pool], description=description)
         if not data:
-            raise ConfigError(f"{where}: give the persona's fields, a 'pool' or a 'source'")
+            raise ConfigError(f"{where}: give the test customer's fields, a 'pool' or a 'source'")
         return cls(name=name, pool=[data], description=description)
 
     def public(self) -> dict[str, Any]:
@@ -187,16 +187,16 @@ class PersonaSpec:
 @dataclass
 class ProfileEnvironment:
     variables: dict[str, Any] = field(default_factory=dict)
-    personas: dict[str, PersonaSpec] = field(default_factory=dict)
+    test_customers: dict[str, CustomerSpec] = field(default_factory=dict)
 
     @classmethod
     def parse(cls, name: str, data: Any) -> "ProfileEnvironment":
         where = f"environments.{name}"
         data = _mapping(where, data)
-        _check_keys(where, data, {"variables", "personas"})
-        personas = {str(k): PersonaSpec.parse(f"{where}.personas.{k}", str(k), v)
-                    for k, v in _mapping(f"{where}.personas", data.get("personas")).items()}
-        return cls(variables=_mapping(f"{where}.variables", data.get("variables")), personas=personas)
+        _check_keys(where, data, {"variables", "test_customers"})
+        test_customers = {str(k): CustomerSpec.parse(f"{where}.test_customers.{k}", str(k), v)
+                    for k, v in _mapping(f"{where}.test_customers", data.get("test_customers")).items()}
+        return cls(variables=_mapping(f"{where}.variables", data.get("variables")), test_customers=test_customers)
 
 
 @dataclass
@@ -327,10 +327,10 @@ class Profile:
     error_paths: list[str] = field(default_factory=list)
     session: SessionSpec = field(default_factory=SessionSpec)
     identity: list[str] = field(default_factory=list)
-    default_persona: str | None = None
+    default_test_customer: str | None = None
     environments: dict[str, ProfileEnvironment] = field(default_factory=dict)
     noise: list[str] = field(default_factory=list)
-    persona_fields: list[str] = field(default_factory=list)
+    test_customer_fields: list[str] = field(default_factory=list)
     secret_fields: list[str] = field(default_factory=list)
     catalog_path: Path | None = None
     hooks: str | None = None
@@ -353,10 +353,10 @@ class Profile:
         _check_keys(f"profile {path.name}", data, PROFILE_KEYS)
         request = _mapping("request", data.get("request"))
         _check_keys("request", request, {"method", "url", "envelope", "session_envelope", "headers"})
-        personas = _mapping("personas", data.get("personas"))
-        _check_keys("personas", personas, {"identity", "default"})
+        test_customers = _mapping("test_customers", data.get("test_customers"))
+        _check_keys("test_customers", test_customers, {"identity", "default"})
         importer = _mapping("importer", data.get("importer"))
-        _check_keys("importer", importer, {"persona_fields", "secret_fields"})
+        _check_keys("importer", importer, {"test_customer_fields", "secret_fields"})
         url = str(request.get("url", "{path}/{operation}"))
         if "{operation}" not in url:
             raise ConfigError("request.url must contain {operation}")
@@ -376,12 +376,12 @@ class Profile:
                       headers=_mapping("request.headers", request.get("headers")),
                       success=_assertions("success", data.get("success")), error_paths=[str(x) for x in error_paths],
                       session=SessionSpec.parse(data.get("session")),
-                      identity=[str(x) for x in personas.get("identity") or []],
-                      default_persona=str(personas["default"]) if personas.get("default") else None,
+                      identity=[str(x) for x in test_customers.get("identity") or []],
+                      default_test_customer=str(test_customers["default"]) if test_customers.get("default") else None,
                       environments={str(k): ProfileEnvironment.parse(str(k), v)
                                     for k, v in _mapping("environments", data.get("environments")).items()},
                       noise=[str(x) for x in data.get("noise") or []],
-                      persona_fields=[str(x) for x in importer.get("persona_fields") or []],
+                      test_customer_fields=[str(x) for x in importer.get("test_customer_fields") or []],
                       secret_fields=[str(x) for x in importer.get("secret_fields") or []],
                       catalog_path=catalog_path, hooks=str(data["hooks"]) if data.get("hooks") else None)
         profile.catalog = Catalog.load(catalog_path)
@@ -402,8 +402,8 @@ class Profile:
                                "session_ttl_s": self.session.ttl_s}
         if self.description:
             out["description"] = self.description
-        if self.default_persona:
-            out["default_persona"] = self.default_persona
+        if self.default_test_customer:
+            out["default_test_customer"] = self.default_test_customer
         if env:
-            out["personas"] = [p.public() for p in self.environment(env).personas.values()]
+            out["test_customers"] = [p.public() for p in self.environment(env).test_customers.values()]
         return out

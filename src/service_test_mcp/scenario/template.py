@@ -2,7 +2,8 @@
 
 * ``{{name}}`` / ``{{oturum.token}}`` / ``{{liste[0].no}}`` - scenario variables and values captured by ``extract``.
 * ``{{env.name}}`` - ``variables`` of the selected environment in services.yaml (test data per environment).
-* ``{{persona.Field}}`` / ``{{session.Key}}`` - profile services: the test customer's fields and the login session.
+* ``{{test_customer.Field}}`` / ``{{session.Key}}`` - profile services: the test customer's fields and the login
+  session.
   They are filled in by the profile when the request is built, so scenario rendering leaves them as they are.
 * ``{{secret.STM_SECRET_X}}`` - an OS environment variable whose name starts with ``STM_SECRET_`` (passwords for
   login steps). Its value is redacted from every output.
@@ -55,7 +56,7 @@ class Context:
         self.variables: dict[str, Any] = dict(variables or {})
         self.env_variables = dict(env_variables or {})
         self.on_secret = on_secret
-        self.keep = keep          # roots left as {{...}} for a later stage (e.g. "persona", "session")
+        self.keep = keep          # roots left as {{...}} for a later stage (e.g. "test_customer", "session")
 
     def _kept(self, expr: str) -> bool:
         return bool(self.keep) and expr.strip().split(".")[0].split("[")[0] in self.keep

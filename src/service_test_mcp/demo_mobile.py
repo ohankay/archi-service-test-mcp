@@ -9,7 +9,7 @@ It behaves like the real kind of service the mobile profile targets, with made-u
   activation token) -> ``OtpLoginCompleteNew`` (fixed OTP on test environments).
 * Sessions end after ``SESSION_TTL_S`` seconds, and a new login of the same customer ends the previous session
   (parallel logins are not allowed). Both answer HTTP 200 with ``Success: false`` and ErrorCode SESSION_EXPIRED.
-* ``TestData/TestDataService.svc/GetTestCustomer`` hands out test customers (for API-sourced personas).
+* ``TestData/TestDataService.svc/GetTestCustomer`` hands out test customers (for API-sourced test_customers).
 
 Demo values (never real): application user ``MobileTestApp`` / ``Demo-App-Pass1``, OTP ``123456``.
 """

@@ -10,10 +10,10 @@ Temel aldığı proje [service-test-mcp-simple](https://github.com/ohankay/servi
 |---|---|
 | **Servis profilleri** | Bir servis ailesinin (ör. mobil WCF) nasıl çağrılacağı YAML'da tanımlanır: URL şablonu, her isteğe eklenen **zarf** (cihaz/uygulama/oturum alanları), header şablonları ve iş seviyesi başarı kuralı (`$.Success`). Ajan yalnızca operasyon adı ve parametre verir. |
 | **Otomatik login ve session** | Login adımları profilde tanımlıdır (ör. uygulama girişi → müşteri girişi → sabit OTP). 5 dakikalık session süresi dolmadan yenilenir. Sunucu session'ı bitirirse yeniden login olunur ve okuma çağrısı bir kez tekrarlanır. Para hareketi otomatik tekrarlanmaz. |
-| **Persona (test müşterisi)** | Sabit müşteri, müşteri havuzu ya da test-verisi API'sinden alınan müşteri. Aynı persona adı her ortamda o ortamın müşterisine çözülür. |
-| **Paralel login kapalı** | Bir test müşterisiyle aynı anda tek login yapılabilir. Bunu süreçler ve makineler arası **persona kilidi** (süreli lease) sağlar: VS Code pencereleri, ajanlar ve CI birbirinin session'ını düşürmez. |
+| **Test müşterisi (`test_customer`)** | Sabit müşteri, müşteri havuzu ya da test-verisi API'sinden alınan müşteri. Aynı test müşterisi adı her ortamda o ortamın müşterisine çözülür. |
+| **Paralel login kapalı** | Bir test müşterisiyle aynı anda tek login yapılabilir. Bunu süreçler ve makineler arası **test müşterisi kilidi** (süreli lease) sağlar: VS Code pencereleri, ajanlar ve CI birbirinin session'ını düşürmez. |
 | **Logdan katalog** | Kullanıcı mobil uygulamanın transaction logunu (ya da HAR dosyasını) ajana verir. **Logu MCP okur**, model ham logu hiç görmez. Sunucu logu maskeler, servisi ve ortamı host'tan bulur ve yeni/değişen operasyonları, alan sınıflarını ve bağımlılıkları özetler. Kullanıcı onaylayınca katalog yazılır. İsteğe bağlı olarak akıştan taslak senaryo da üretilir. |
-| **Ortamlar** | test / prep / dev: URL, OTP, persona ve test verisi ortam bazlıdır. Senaryolar ortamdan bağımsızdır (`--env prep`). Test ortamlarında para transferi dahil hiçbir şey engelli değildir. Prod adları reddedilir ve host allowlist korunur. |
+| **Ortamlar** | test / prep / dev: URL, OTP, test müşterisi ve test verisi ortam bazlıdır. Senaryolar ortamdan bağımsızdır (`--env prep`). Test ortamlarında para transferi dahil hiçbir şey engelli değildir. Prod adları reddedilir ve host allowlist korunur. |
 | **İki çalışma modu** | VS Code + Copilot ve bağımsız ajan, aynı araçları ve aynı talimat dosyasını kullanır. CI için AI'sız koşu (`--run`, JUnit) vardır. |
 
 Mimari, verilen kararlar ve açık konular: [docs/MIMARI.md](docs/MIMARI.md). Yeni bir servis ailesi eklemek için: [docs/YENI-SERVIS.md](docs/YENI-SERVIS.md).
@@ -106,13 +106,13 @@ Ajan şunu çağırır:
 
 ```
 call_operation(service="MobilBankacilik", operation="GetDashBoardMobileInformation",
-               params={"MainResourceCode": "DASHBOARD"}, persona="bireysel_standart")
+               params={"MainResourceCode": "DASHBOARD"}, test_customer="bireysel_standart")
 ```
 
 Sunucu bu çağrı için sırasıyla şunları yapar:
 
 1. Operasyonu katalogda bulur (`BOA.Integration.MobileBanking.DashBoard/DashBoardService.svc`).
-2. `bireysel_standart` persona'sının o ortamdaki müşterisini çözer ve onun kilidini alır.
+2. `bireysel_standart` adlı test müşterisinin o ortamdaki karşılığını çözer ve onun kilidini alır.
 3. Session yoksa ya da yaklaşık 4,5 dakikayı geçmişse login adımlarını koşar: `LoginForMobileBranch` → `InitialLogin` → `OtpLoginCompleteNew` (sabit OTP).
 4. İsteği zarf + parametreler + header'lar ile gönderir; host allowlist, maskeleme ve denetim logu her çağrıda uygulanır.
 5. `Success` alanına göre iş sonucunu döner. Sunucu `SESSION_EXPIRED` dönerse yeniden login olur ve okuma çağrısını bir kez tekrarlar.
@@ -124,7 +124,7 @@ Profilin tüm seçenekleri `src/service_test_mcp/profile/model.py` başındaki a
 ```yaml
 environments:
   test:
-    personas:
+    test_customers:
       bireysel_standart: { CustomerId: 1000001, UserId: "...", ActivationToken: "..." }   # sabit
       bireysel_havuz:                                                                       # havuz
         pool: [ { CustomerId: 1000002, ... }, { CustomerId: 1000003, ... } ]
@@ -132,7 +132,7 @@ environments:
         source: { operation: GetTestCustomer, extract: { CustomerId: $.Value.CustomerId, ... } }
 ```
 
-**Persona kilidi:** Kilitler varsayılan olarak `%USERPROFILE%\.service-test-mcp\locks` altında tutulur. Birden fazla makine aynı test müşterilerini paylaşıyorsa `locks.dir` ile ortak bir klasör (ağ paylaşımı) verin. Dolu bir persona istendiğinde havuzdan boş bir müşteri seçilir. Hiçbiri boş değilse `locks.wait_s` kadar beklenir, sonra kilidi kimin tuttuğunu söyleyen bir hata döner. Süreç çökerse kilit session süresi sonunda kendiliğinden düşer. `end_sessions` aracı logout yapar ve kilitleri bırakır.
+**Test müşterisi kilidi:** Kilitler varsayılan olarak `%USERPROFILE%\.service-test-mcp\locks` altında tutulur. Birden fazla makine aynı test müşterilerini paylaşıyorsa `locks.dir` ile ortak bir klasör (ağ paylaşımı) verin. Dolu bir test müşterisi istendiğinde havuzdan boş bir müşteri seçilir. Hiçbiri boş değilse `locks.wait_s` kadar beklenir, sonra kilidi kimin tuttuğunu söyleyen bir hata döner. Süreç çökerse kilit session süresi sonunda kendiliğinden düşer. `end_sessions` aracı logout yapar ve kilitleri bırakır.
 
 ## Logdan katalog
 
@@ -145,7 +145,7 @@ import_traffic_log(path="...", scenario_path="scenarios/_taslak.yaml")  # akış
 Ajana dönen rapor şunları içerir:
 - Operasyon durumları: yeni / değişti (alan eklendi, tip değişti) / değişmedi.
 - Tahmini tür (read / mutating / auth / sınıflandırılamadı) ve session gerekip gerekmediği.
-- Persona alanları ve kimlik bilgisi alanları (bunlar hiçbir yere yazılmaz).
+- Test müşterisi alanları ve kimlik bilgisi alanları (bunlar hiçbir yere yazılmaz).
 - Önceki yanıtlardan gelen değerler (ör. `ExtUSessionKey ← InitialLogin $.SessionKey`).
 - Zarfa taşınması önerilen alanlar, gürültü olarak atlanan çağrılar ve profil dışı kalan çağrılar (ör. chatbot API'si).
 
@@ -164,7 +164,7 @@ AI'sız kullanım: `service-test-mcp --import-log log.txt [--apply] [--scenario-
 | `describe_operation` | Profil: katalog girdisi (örnek parametreler, istek/yanıt şeması, tür). SOAP: şema, `example_params`. REST: OpenAPI |
 | `call_operation` | Profil servisinde operasyon adıyla çağrı. Zarf, login, OTP ve session otomatik; isteğe bağlı `assertions` ve `extract` |
 | `list_test_customers` | Personalar, bu sunucunun session'ları ve başka yerde (başka pencere, ajan, CI) kilitli personalar |
-| `end_sessions` | Logout yapar ve persona kilitlerini bırakır |
+| `end_sessions` | Logout yapar ve test müşterisi kilitlerini bırakır |
 | `import_traffic_log` | Logu sunucuda okur ve katalog önerisi sunar (önizleme / `apply`), taslak senaryo üretir |
 | `describe_service`, `check_service` | Servis ayrıntısı ve bağlantı testi |
 | `soap_call`, `rest_call` | Profilsiz SOAP/REST servisleri için ham çağrı |
@@ -178,7 +178,7 @@ AI'sız kullanım: `service-test-mcp --import-log log.txt [--apply] [--scenario-
 id: mobil-para-transferi
 title: IBAN'a para transferi ve gecersiz tutar
 tags: [transfer]
-persona: bireysel_havuz              # senaryo geneli (adımda da verilebilir)
+test_customer: bireysel_havuz             # senaryo geneli (adımda da verilebilir)
 steps:
   - name: Bakiye
     service: MobilBankacilik         # profil servisi: operation + params
@@ -207,7 +207,7 @@ steps:
 
 Aynı dosyada SOAP adımları (`operation` + `params`) ve REST adımları (`method` + `path`) da kullanılabilir.
 
-**Değişkenler:** `{{ad}}` (değişken ya da `extract` sonucu), `{{env.x}}` (ortam değişkeni; profilin ortam değişkenleri ve `services.yaml`), `{{persona.CustomerId}}`, `{{secret.STM_SECRET_X}}`, `{{$uuid}}`, `{{$today}}`, `{{$date(+1)}}`, `{{$random_digits(8)}}`.
+**Değişkenler:** `{{ad}}` (değişken ya da `extract` sonucu), `{{env.x}}` (ortam değişkeni; profilin ortam değişkenleri ve `services.yaml`), `{{test_customer.CustomerId}}`, `{{secret.STM_SECRET_X}}`, `{{$uuid}}`, `{{$today}}`, `{{$date(+1)}}`, `{{$random_digits(8)}}`.
 
 **Assertion'lar:** `success: true|false` (profilin iş kuralı), `fault`, `status`, `responseTimeMs`, `header`, `schema` ve `path: <JSONPath>` ile birlikte bir operatör: `equals`, `notEquals`, `equalsIgnoreCase`, `contains`, `notContains`, `startsWith`, `endsWith`, `matches`, `in`, `notIn`, `exists`, `notEmpty`, `isNull`, `type`, `numeric`, `count`, `length`, `schema`. `all: true` assertion'ı her eşleşmeye uygular. Bir adım başarısız olursa sonraki adımlar atlanır; bunu `continue_on_failure: true` değiştirir.
 
@@ -235,7 +235,7 @@ service-test-agent --toolset profile      &rem interaktif
 ## Bilinmesi gerekenler
 
 - **Maskeleme:** TCKN, TR IBAN, kart numarası, telefon, e-posta ve şifre/token/secret/OTP/session key alanları maskelenir. Login'den gelen session değerleri ve logda görülen kimlik bilgileri, hangi alanda görünürlerse görünsünler gizlenir. Assertion'lar ve `extract` gerçek değerlerle çalışır.
-- **Denetim logu:** `%USERPROFILE%\.service-test-mcp\logs\audit-YYYYMMDD.jsonl`. Login, logout, persona ve araç çağrılarının hepsi kaynağıyla (`origin`) birlikte kaydedilir.
+- **Denetim logu:** `%USERPROFILE%\.service-test-mcp\logs\audit-YYYYMMDD.jsonl`. Login, logout, test müşterisi ve araç çağrılarının hepsi kaynağıyla (`origin`) birlikte kaydedilir.
 - **Desteklenmeyen WCF binding'leri:** `netTcpBinding`, `netNamedPipeBinding` ve SecureConversation'lı `wsHttpBinding`. Mobil servisler `webHttpBinding` (JSON) kullandığı için profil ile çalışır.
 
 ## Açık konular

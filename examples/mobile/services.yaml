@@ -25,7 +25,7 @@ services:
       prep: http://127.0.0.1:8899/prep/MobileBranch
     profile: profiles/mobil.profile.yaml
 
-# Persona leases (one login per test customer at a time). Default: %USERPROFILE%\.service-test-mcp\locks.
+# Test customer leases (one login per test customer at a time). Default: %USERPROFILE%\.service-test-mcp\locks.
 # A shared folder makes leases visible to every machine that uses the same test customers:
 # locks:
 #   dir: \\dosya-sunucusu\qa\service-test-locks

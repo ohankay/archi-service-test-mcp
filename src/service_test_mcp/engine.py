@@ -26,7 +26,7 @@ _ENGINES: "weakref.WeakSet[Engine]" = weakref.WeakSet()
 
 @atexit.register
 def _close_all() -> None:
-    """Log out and free persona leases when the process ends normally (a crash frees them by expiry)."""
+    """Log out and free test_customer leases when the process ends normally (a crash frees them by expiry)."""
     for engine in list(_ENGINES):
         try:
             engine.close()
@@ -160,9 +160,9 @@ class Engine:
         return result
 
     def profile_call(self, service: str, operation: str, params: dict[str, Any] | None = None,
-                     persona: str | None = None, environment: str | None = None, origin: str = "tool",
+                     test_customer: str | None = None, environment: str | None = None, origin: str = "tool",
                      fresh_session: bool = False) -> dict[str, Any]:
-        return self.profile(service).call(operation, params, persona, environment, origin, fresh_session)
+        return self.profile(service).call(operation, params, test_customer, environment, origin, fresh_session)
 
     def _register_secrets(self, svc: ServiceConfig, env: EnvironmentConfig) -> None:
         secrets = []

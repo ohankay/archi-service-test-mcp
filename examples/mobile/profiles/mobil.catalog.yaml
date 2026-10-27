@@ -206,7 +206,7 @@ operations:
     path: TestData/TestDataService.svc
     kind: read
     session: false
-    description: 'Test verisi servisi: siradaki test musterisini verir (yeni_musteri personasi bunu kullanir).'
+    description: 'Test verisi servisi: siradaki test musterisini verir (yeni_musteri test_customersi bunu kullanir).'
     tags:
     - test-verisi
     response_schema:
@@ -231,7 +231,7 @@ operations:
     tags:
     - login
     params:
-      CustomerId: '{{persona.CustomerId}}'
+      CustomerId: '{{test_customer.CustomerId}}'
     request_schema:
       type: object
       properties:
@@ -279,7 +279,7 @@ operations:
     tags:
     - login
     params:
-      UserId: '{{persona.UserId}}'
+      UserId: '{{test_customer.UserId}}'
     request_schema:
       type: object
       properties:
@@ -349,7 +349,7 @@ operations:
     tags:
     - login
     params:
-      CustomerId: '{{persona.CustomerId}}'
+      CustomerId: '{{test_customer.CustomerId}}'
     request_schema:
       type: object
       properties:
