@@ -1,0 +1,8 @@
+ad: Kur listesi
+aciklama: Canlı döviz ve altın kurları (alış / satış).
+metod: GetFXRateList
+yol: BOA.Integration.MobileBanking.PreciousMetal/PreciousMetalService.svc
+tur: okuma
+oturum: true
+durum: onayli
+sabit: {MainResourceCode: MOBTLIVEFXRATE, MainResourceId: 21642}

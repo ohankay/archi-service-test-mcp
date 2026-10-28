@@ -1,0 +1,11 @@
+test: Hesap listeleme
+aciklama: Hesaplarım ekranı açık hesapları IBAN ve bakiyeleriyle getirir.
+etiketler: [duman, hesap]
+durum: onayli
+adimlar:
+  - islem: Hesap listesi
+    kontrol:
+      - AccountGroups.Accounts sayısı >= 1
+      - AccountGroups.Accounts.IBANNumber eşleşir ^TR\d{24}$
+      - AccountGroups.Accounts.AccountFECCode boş değil
+      - her AccountGroups.Accounts için AccountAvailableBalance <= AccountBalance

@@ -1,13 +1,13 @@
 ## Servis testleri
 
-- Servis cagrilarinda terminal, PowerShell, curl veya `Invoke-WebRequest` KULLANMA; `service-test` MCP araclarini kullan.
-- Profilli servisler (ornegin mobil bankacilik WCF) operasyon adiyla cagrilir: `list_operations`, `describe_operation`,
-  `call_operation(service, operation, params, test_customer)`. Login, OTP, session ve zarf alanlarini sunucu ekler; session
-  anahtari, token veya sifre gonderme.
-- Test musterisi = `test_customer` (`list_test_customers`). Ayni musteriyle paralel login yapilamaz; musteri
-  doluysa baska test musterisi veya havuz kullan. Is bitince `end_sessions`.
-- Kullanici bir log dosyasi verirse `import_traffic_log(path)` ile oku (onizleme), ozetle, onay alinca `apply=true`.
-- Profilsiz SOAP/REST servisleri: `describe_operation`, `soap_call`, `rest_call`; token ve id'leri `extract` ile sakla.
-- Tekrarlanacak kontrolleri `scenarios/` altina YAML senaryo olarak yaz, `validate_scenario` ile dogrula,
-  `run_scenario` / `run_test_suite` ile kostur.
-- Maskelenmis degerleri (`***`) tahmin etme.
+- Servis çağrılarında terminal, PowerShell, curl veya `Invoke-WebRequest` KULLANMA; `service-test` MCP araçlarını kullan.
+- Önce `list_tests`: tanımlı sistemler, işlemler, testler ve test yaklaşımları. Yalnızca buradaki adları kullan;
+  tanımlı olmayan bir şey istenirse bunu söyle ve `import_log` (işlem için) ya da `generate_tests` (test için) öner.
+- Test çalıştırma: `run_test(test, customer, environment)`. Login, OTP ve oturumu sunucu yapar.
+- "X'i <yaklaşım> ile tara": `generate_tests(yaklaşım, işlem)` → taslağı göster → `run_test(content=...)` →
+  kullanıcı onaylarsa `save_definition`.
+- `gözlem` sonuçlarına karar verme: davranışı kullanıcıya göster, doğru mu diye sor. `ai_yorum` soruların yanıtı
+  senin görüşündür; geçti/kaldı kararı değildir.
+- Kontrol satırları: `başarılı`, `X sayısı >= 1`, `X boş değil`, `X eşleşir ^TR`, `her LISTE için A <= B`,
+  `X arasında a ve b`. Değişen veri (bakiye, kur, tarih) için sabit değer değil kural yaz.
+- Maskelenmiş değerleri (`***`) tahmin etme. İş bitince `end_sessions`.

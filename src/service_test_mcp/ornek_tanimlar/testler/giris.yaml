@@ -1,0 +1,6 @@
+test: Giriş
+aciklama: Müşteri no + ortak şifre + SMS OTP ile giriş yapılır ve ana sayfa açılır.
+etiketler: [duman, giris]
+durum: onayli
+adimlar:
+  - islem: Ana sayfa

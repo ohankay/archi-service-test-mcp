@@ -25,6 +25,8 @@ from typing import Any
 BASE = "/MobileBranch/"
 APP_USER = "MobileTestApp"
 APP_PASSWORD = "Demo-App-Pass1"
+APP_PASSWORD_2 = "Demo-App-Pass2"    # the app sends a second application password after the customer login
+CUSTOMER_PASSWORD = "Demo-Musteri-1"  # one common password for every test customer
 OTP = "123456"
 SESSION_TTL_S = 300.0
 CUSTOMERS: dict[str, dict[str, Any]] = {
@@ -92,7 +94,7 @@ def _session(key: str, stage: str = "active") -> tuple[dict[str, Any] | None, di
 
 
 def handle(path: str, body: Any) -> tuple[int, dict[str, Any]]:
-    if not path.startswith(BASE):
+    if BASE.strip("/") + "/" not in path:
         return 404, {"error": "not_found"}
     method = path.rstrip("/").rsplit("/", 1)[-1]
     if not isinstance(body, dict):
@@ -125,7 +127,9 @@ def handle(path: str, body: Any) -> tuple[int, dict[str, Any]]:
     if method == "InitialLogin":
         cid = str(body.get("CustomerId") or "")
         c = CUSTOMERS.get(cid)
-        if c is None or body.get("ActivationToken") != c["ActivationToken"]:
+        by_password = "Password" in body                      # LoginType 2: password, then SMS OTP
+        if c is None or (by_password and body.get("Password") != CUSTOMER_PASSWORD) or \
+                (not by_password and body.get("ActivationToken") != c["ActivationToken"]):
             return 200, _error("LOGIN_FAILED", "Müşteri bilgileri doğrulanamadı")
         new = uuid.uuid4().hex
         with _LOCK:
@@ -133,21 +137,33 @@ def handle(path: str, body: Any) -> tuple[int, dict[str, Any]]:
             if old and old in SESSIONS:
                 SESSIONS.pop(old)
                 STATS["ended_by_parallel_login"] += 1
-            SESSIONS[new] = {"stage": "otp", "created": time.time(), "customer": cid}
+            SESSIONS[new] = {"stage": "sms" if by_password else "otp", "created": time.time(), "customer": cid,
+                             "password": by_password}
             ACTIVE[cid] = new
             STATS["customer_logins"] += 1
         return 200, _ok(SessionKey=new, SessionId=str(uuid.uuid4()), CustomerId=int(cid),
-                        AuthenticationToken="eyJ.demo." + uuid.uuid4().hex, IsCustomerPrivate=False)
+                        AuthenticationToken="eyJ.demo." + uuid.uuid4().hex, IsCustomerPrivate=False,
+                        GsmNumber="5*****0123")
+    if method == "SendSmsOtp":
+        s, err = _session(key, "sms")
+        if err:
+            return 200, err
+        with _LOCK:
+            s["stage"] = "otp"
+        return 200, _ok(IsSendEmail=False)
     if method == "OtpLoginCompleteNew":
         s, err = _session(key, "otp")
         if err:
             return 200, err
         if str(body.get("GeneratedOtp")) != OTP:
             return 200, _error("OTP_INVALID", "Doğrulama kodu hatalı")
+        if s.get("password") and body.get("Password") != CUSTOMER_PASSWORD:
+            return 200, _error("LOGIN_FAILED", "Şifre hatalı")
         with _LOCK:
             s["stage"] = "active"
         c = CUSTOMERS[s["customer"]]
-        return 200, _ok(LoginResponse={"CustomerName": c["Name"], "CustomerId": int(s["customer"])})
+        return 200, _ok(LoginResponse={"CustomerName": c["Name"], "CustomerId": int(s["customer"]),
+                                       "SessionKey": key, "AuthenticationToken": "eyJ.demo." + uuid.uuid4().hex})
 
     s, err = _session(key)
     if err:
@@ -157,6 +173,13 @@ def handle(path: str, body: Any) -> tuple[int, dict[str, Any]]:
         account = {"AccountNumber": f"{s['customer']}-1", "Iban": c["Iban"], "Balance": c["Balance"],
                    "CurrencyCode": "TRY"}
         return 200, _ok(Value={"CustomerName": c["Name"], "Accounts": [account]})
+    if method == "AccountListByGroup":
+        return 200, _ok(AccountGroups=[{"Title": "Vadesiz Hesaplar", "FECCode": "TRY", "TotalBalance": c["Balance"],
+                                        "Accounts": _accounts(s["customer"])}])
+    if method == "AccountTransactionHistoryList":
+        return 200, _history(s["customer"], body)
+    if method == "GetFXRateList":
+        return 200, _ok(FXRateModelList=FX_RATES, IsCacheUsed=False)
     if method == "GetProfileBasics":
         return 200, _ok(Value={"CustomerId": int(s["customer"]), "Name": c["Name"], "Email": "musteri@example.com"})
     if method == "ExecuteMoneyTransfer":
@@ -180,6 +203,56 @@ def handle(path: str, body: Any) -> tuple[int, dict[str, Any]]:
                 ACTIVE.pop(s["customer"], None)
         return 200, _ok()
     return 200, _error("UNKNOWN_METHOD", f"Bilinmeyen metod: {method}")
+
+
+# -- accounts, transactions, exchange rates --------------------------------------------------------------------------
+FX_RATES = [
+    {"BaseFecCode": code, "BaseFecName": name, "ParityFecCode": "TRY", "CurrencyBid": bid, "CurrencyAsk": ask,
+     "CostBid": bid, "CostAsk": ask, "IsDefault": code == "USD"}
+    for code, name, bid, ask in (("USD", "Amerikan Doları", Decimal("41.8210"), Decimal("42.1180")),
+                                 ("EUR", "Euro", Decimal("48.6120"), Decimal("48.9930")),
+                                 ("GBP", "İngiliz Sterlini", Decimal("55.7340"), Decimal("56.2210")),
+                                 ("ALT", "Altın (gr)", Decimal("5412.10"), Decimal("5498.40")))]
+
+
+def _accounts(cid: str) -> list[dict[str, Any]]:
+    c = CUSTOMERS[cid]
+    return [{"AccountNumber": int(cid), "AccountSuffix": 1, "IBANNumber": c["Iban"], "AccountName": "Vadesiz TL",
+             "AccountFECCode": "TRY", "AccountBalance": c["Balance"], "AccountAvailableBalance": c["Balance"],
+             "IsActive": True},
+            {"AccountNumber": int(cid), "AccountSuffix": 2, "IBANNumber": c["Iban"][:-4] + "0002",
+             "AccountName": "Vadesiz USD", "AccountFECCode": "USD", "AccountBalance": Decimal("120.00"),
+             "AccountAvailableBalance": Decimal("120.00"), "IsActive": True}]
+
+
+def _history(cid: str, body: dict[str, Any]) -> dict[str, Any]:
+    import datetime as _dt
+
+    try:
+        number, suffix = int(body.get("AccountNumber")), int(body.get("AccountSuffix"))
+    except (TypeError, ValueError):
+        return _error("INVALID_ACCOUNT", "Hesap numarası geçersiz")
+    if number != int(cid) or suffix not in (1, 2):
+        return _error("ACCOUNT_NOT_FOUND", "Hesap bulunamadı")
+    try:
+        begin = _dt.datetime.strptime(str(body.get("BeginDate")), "%d.%m.%Y").date()
+        end = _dt.datetime.strptime(str(body.get("EndDate")), "%d.%m.%Y").date()
+    except ValueError:
+        return _error("INVALID_DATE", "Tarih biçimi GG.AA.YYYY olmalı")
+    if end < begin:
+        return _error("INVALID_DATE_RANGE", "Bitiş tarihi başlangıçtan önce olamaz")
+    if (end - begin).days > 365:
+        return _error("DATE_RANGE_TOO_LONG", "En fazla 365 günlük hareket listelenebilir")
+    today = _dt.date.today()
+    moves = []
+    for days, amount, text in ((2, Decimal("-120.25"), "Market alışverişi"), (5, Decimal("2000.00"), "Maaş"),
+                               (12, Decimal("-350.00"), "Fatura ödemesi"), (40, Decimal("-75.50"), "Restoran")):
+        day = today - _dt.timedelta(days=days)
+        if begin <= day <= end:
+            moves.append({"TransactionDate": day.strftime("%d.%m.%Y"), "Amount": amount, "Description": text,
+                          "FECCode": "TRY" if suffix == 1 else "USD"})
+    return _ok(AccountTransactionHistoryList=moves,
+               AccountInfo={"AccountName": "Vadesiz TL" if suffix == 1 else "Vadesiz USD", "AccountSuffix": suffix})
 
 
 # -- sample traffic log (the mobile app's TransactionLog format) ------------------------------------------------------

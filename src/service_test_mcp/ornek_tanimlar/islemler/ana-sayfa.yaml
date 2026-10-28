@@ -1,0 +1,10 @@
+ad: Ana sayfa
+aciklama: Girişten sonra açılan ana sayfa bilgileri. Girişin çalıştığını doğrulamak için de kullanılır.
+metod: GetDashBoardMobileInformation
+yol: BOA.Integration.MobileBanking.DashBoard/DashBoardService.svc
+tur: okuma
+oturum: true
+durum: onayli
+sabit: {MainResourceCode: MOBRDASHBO, MainResourceId: 22027}
+kontroller:
+  - süre < 5 sn

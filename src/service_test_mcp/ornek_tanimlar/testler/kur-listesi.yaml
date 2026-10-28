@@ -1,0 +1,12 @@
+test: Kur bilgisi listeleme
+aciklama: Kur listesi gelir; her kurda alış satıştan büyük olmamalı.
+etiketler: [duman, kur]
+durum: onayli
+adimlar:
+  - islem: Kur listesi
+    kontrol:
+      - FXRateModelList sayısı >= 1
+      - FXRateModelList.BaseFecCode boş değil
+      - her FXRateModelList için CurrencyBid <= CurrencyAsk
+      - her FXRateModelList için CurrencyBid > 0
+      - süre < 3 sn

@@ -69,11 +69,15 @@ if errorlevel 1 ( echo [HATA] Eksik veya uyumsuz paket var ^(yukaridaki liste^).
 if errorlevel 1 ( echo [HATA] Python modulleri yuklenemedi ^(pywin32 / lxml / zeep / mcp^). Klasoru silip tekrar kurun: %STM_INSTALL_HOME% & exit /b 16 )
 "%STM_INSTALL_HOME%\Scripts\service-test-mcp.exe" --version
 if errorlevel 1 ( echo [HATA] service-test-mcp calismiyor. & exit /b 13 )
+rem Hazir tanimlar (sistem, islemler, yaklasimlar, testler). Var olan dosyalara dokunulmaz.
+"%STM_INSTALL_HOME%\Scripts\service-test-mcp.exe" --init >nul
+if exist "%HERE%kurum-tanimlari" "%STM_INSTALL_HOME%\Scripts\service-test-mcp.exe" --init --kaynak "%HERE%kurum-tanimlari" --force >nul
 
 echo.
 echo KURULUM TAMAM
 echo   MCP sunucusu : %STM_INSTALL_HOME%\Scripts\service-test-mcp.exe
 echo   Bagimsiz ajan: %STM_INSTALL_HOME%\Scripts\service-test-agent.exe
+echo   Tanimlar     : %USERPROFILE%\.service-test-mcp\tanimlar
 exit /b 0
 
 :wrong_python

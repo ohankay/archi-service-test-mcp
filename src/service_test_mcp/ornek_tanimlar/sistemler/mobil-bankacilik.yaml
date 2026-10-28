@@ -1,0 +1,130 @@
+# Mobil bankacilik WCF servisleri (webHttpBinding, JSON). Bu dosyayi teknik bir kisi bir kez yazar;
+# test yazan kisi gormez. Gercek ortamlarin adresleri ve gizli degerleri bu ornekte YOK: gercek "prep" ortami
+# kurum ici pakette gelir, gizli degerler yerel gizli.yaml'da durur (import_log save_secrets=true ile dolar).
+ad: Mobil Bankacılık
+aciklama: Mobil uygulamanın kullandığı WCF servisleri. Her istek POST <adres>/<yol>/<metod>.
+durum: onayli
+ortamlar:
+  demo:
+    adres: http://127.0.0.1:8899/demo/BOA.Integration.MobileBranch
+    aciklama: Yerel demo servisi (service-test-mcp --demo-server)
+    varsayilan_musteri: 1000001
+    degiskenler:                               # SADECE DEMO degerleri
+      uygulama_kullanici: MobileTestApp
+      uygulama_sifresi: Demo-App-Pass1
+      musteri_kullanici: MobileTestApp
+      uygulama_sifresi_2: Demo-App-Pass2
+      musteri_sifresi: Demo-Musteri-1
+      otp: "123456"
+      gsm: "905000000000"
+      kullanici_id: demo-kullanici
+  # prep:
+  #   adres: https://<prep-adresi>/BOA.Integration.MobileBranch
+  #   degiskenler:
+  #     uygulama_kullanici: <uygulama kullanicisi>
+  #     uygulama_sifresi: "{{gizli.uygulama_sifresi}}"
+  #     musteri_kullanici: <musteri sonrasi kullanici>
+  #     uygulama_sifresi_2: "{{gizli.uygulama_sifresi_2}}"
+  #     musteri_sifresi: "{{gizli.musteri_sifresi}}"
+  #     otp: "{{gizli.otp}}"
+  #     gsm: "<gsm>"
+  #     kullanici_id: "<UserId>"
+degiskenler:                                   # tum ortamlarda ortak
+  cihaz_id: 7D1E7C1E-0000-4000-8000-00000000A001
+  uygulama_adi: IOS MobileBranch
+  surum: 7.2.7
+istek:
+  metod: POST
+  adres_kalibi: "{yol}/{metod}"
+  zarf:                                        # her istekte (musteri girisinden sonraki degerler)
+    MethodName: "{{metod}}"
+    ExtUSessionKey: "{{oturum.SessionKey}}"
+    ExtUName: "{{ortam.musteri_kullanici}}"
+    ExtUPassword: "{{ortam.uygulama_sifresi_2}}"
+    SessionType: 2
+    DeviceId: "{{ortam.cihaz_id}}"
+    AppName: "{{ortam.uygulama_adi}}"
+    Version: "{{ortam.surum}}"
+    DeviceOSName: IOS
+    DeviceOSVersion: 27.0.1
+    DeviceModel: iPhone 15 Pro Max
+    LanguageId: 1
+    ThemeId: 0
+    KcStatus: true
+    IsDeviceRooted: false
+    OperatorName: "--"
+    NetworkConnectionType: ""
+  oturum_zarfi:                                # yalnizca bir musteriyle oturum acikken
+    OwnerCustomerId: "{{musteri.no}}"
+  basliklar: {}                                # acik konu: header'da tasinan degerler
+basari:
+  - Success = true
+hata_alanlari: [Results.ErrorCode, Results.ErrorMessage]
+oturum:
+  sure_sn: 300
+  yenileme_payi_sn: 30
+  baslangic: {SessionKey: ""}
+  giris:
+    - metod: LoginForMobileBranch              # uygulama girisi (giristen onceki kimlik)
+      yol: BOA.Integration.Authentication/AuthenticationService.svc
+      girdi:
+        ExtUName: "{{ortam.uygulama_kullanici}}"
+        ExtUPassword: "{{ortam.uygulama_sifresi}}"
+        SessionType: 1
+        UserId: "{{ortam.kullanici_id}}"
+        Platform: 3
+        MobileApplicationName: OrganikProd
+      al: {SessionKey: SessionKey}
+    - metod: InitialLogin                      # musteri no + ortak test sifresi
+      yol: BOA.Integration.Authentication/AuthenticationService.svc
+      girdi:
+        ExtUSessionKey: ""
+        OwnerCustomerId: null                  # null: bu alan gonderilmez (uygulama bu adimda gondermiyor)
+        CustomerId: "{{musteri.no}}"
+        Password: "{{ortam.musteri_sifresi}}"
+        GSMNumber: "{{ortam.gsm}}"
+        LoginType: 2
+        SecurityType: 2
+        IsPinValidate: true
+        ContainsCustomerInfo: true
+        IsSessionWithKeycloak: true
+        IsStsEnable: false
+        IsStsLogin: false
+        IsPwfEnable: false
+        IsMSISDNVerificationRequired: false
+        PwfApplicationName: KTIOS
+        ConfigurationAppName: OrganikProd
+        PlatformId: 3
+        MainResourceCode: MOBRMAINPG
+      al: {SessionKey: SessionKey}
+    - metod: SendSmsOtp
+      yol: BOA.Integration.Authentication/AuthenticationService.svc
+      girdi: {CustomerId: "{{musteri.no}}", SmsContentType: 0, MainResourceCode: MOBRMAINPG}
+    - metod: OtpLoginCompleteNew               # sabit OTP
+      yol: BOA.Integration.Authentication/AuthenticationService.svc
+      girdi:
+        CustomerId: "{{musteri.no}}"
+        Password: "{{ortam.musteri_sifresi}}"
+        GeneratedOtp: "{{ortam.otp}}"
+        OtpType: 2
+        IsNewMobileMenu: true
+        PlatformId: 3
+        MainResourceCode: MOBRMAINPG
+      al: {SessionKey: LoginResponse.SessionKey}
+  cikis:
+    metod: Logout
+    yol: BOA.Integration.Authentication/AuthenticationService.svc
+    girdi: {MainResourceCode: MOBRMORE, MainResourceId: 21637}
+  bitti_sayilir:                               # gercek servisin kodu ogrenilince guncellenecek
+    - hata kodu = SESSION_EXPIRED
+musteri: {alan: "no"}                         # test, musteri numarasiyla calisir: {{musteri.no}}
+gurultu: [InsertClientLog, HasUnreadNotification*, GetCusExpMeasureDefinitions*, GetCrossMarketing*,
+          GetLoginCommunicationList, GetTourParameterList, GetAllCountries, GetKeyCloakToken]
+gizli_degerler:                                # import_log save_secrets=true bunlari yerel gizli.yaml'a alir
+  uygulama_sifresi: {metod: LoginForMobileBranch, alan: ExtUPassword}
+  uygulama_sifresi_2: {metod: InitialLogin, alan: ExtUPassword}
+  musteri_sifresi: {metod: InitialLogin, alan: Password}
+  otp: {metod: OtpLoginCompleteNew, alan: GeneratedOtp}
+log_alanlari:
+  musteri: [CustomerId, OwnerCustomerId]
+  gizli: [ExtUPassword, Password, GeneratedOtp, UserId]

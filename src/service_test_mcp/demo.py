@@ -281,13 +281,13 @@ class _Handler(BaseHTTPRequestHandler):
         parts = urlsplit(self.path)
         length = int(self.headers.get("Content-Length") or 0)
         data = self.rfile.read(length) if length else b""
-        if demo_mobile.BASE in parts.path:
+        if demo_mobile.BASE.strip("/") + "/" in parts.path:
             try:
                 req = json.loads(data or b"{}", parse_float=Decimal)
             except ValueError:
                 return self._json(400, {"error": "invalid_json"})
             # /test/MobileBranch/... and /prep/MobileBranch/... stand in for two environments (two hosts in reality)
-            return self._json(*demo_mobile.handle(parts.path[parts.path.index(demo_mobile.BASE):], req))
+            return self._json(*demo_mobile.handle(parts.path, req))
         if parts.path.lower() == "/hesapservisi.svc":
             status, body = _soap(data)
             return self._send(status, body, "text/xml; charset=utf-8")

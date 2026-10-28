@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 from typing import Any, Callable
 
@@ -19,31 +20,36 @@ from .scenario.model import ScenarioError
 from .scenario.runner import Runner
 from .importer.analyze import Importer
 from .scenario.template import Context, TemplateError
+from .tanim.depo import TanimHatasi
+from .tanim.kosucu import Kosucu
+from .tanim.logdan import LogdanTanim
+from .tanim.semalar import KLASORLER
+from .tanim.uretec import Uretec
 
 log = logging.getLogger("service_test_mcp")
 
 INSTRUCTIONS = """\
-Service testing tools for WCF/SOAP and REST services on TEST environments. Never use a terminal, PowerShell, curl or
-Invoke-WebRequest for service calls - use these tools.
-- Start with list_services. Services with a profile (e.g. mobile banking WCF) are called by OPERATION NAME:
-  list_operations -> describe_operation -> call_operation(service, operation, params, test_customer). Login, OTP,
-  session renewal, the request envelope and headers are done by the server; never send session keys or tokens.
-  test_customer = named test customer (list_test_customers); one login per customer at a time, the server enforces it.
-- Other services: describe_service / describe_operation, then soap_call / rest_call. Use extract={"token":
-  "$.Token"} to keep values as session variables and send them later as {{token}}.
-- Traffic logs (mobile app logs, HAR): import_traffic_log(path) - the server reads and masks the file, you get a
-  summary. It is a preview; after the user approves call it again with apply=true to update the catalog.
-- check_last_response evaluates assertions on the last call deterministically.
-- Repeatable tests are YAML scenario files. Profile steps: service + operation + params (+ test_customer); others:
-  operation/params (SOAP) or method/path (REST); assert, extract. validate_scenario, then run_scenario /
-  run_test_suite.
-- Assertions: success (profile business rule), fault, status, responseTimeMs, header, schema, or path (JSONPath) +
-  one operator: equals, notEquals, equalsIgnoreCase, contains, notContains, startsWith, endsWith, matches, in, notIn,
-  exists, notEmpty, isNull, type, numeric {gt,gte,lt,lte,eq,ne,between,tolerance}, count, length, schema.
-- Variables: {{name}}, {{env.var}}, {{secret.STM_SECRET_X}}, {{test_customer.Field}}, {{$uuid}}, {{$today}}, {{$now}},
-  {{$date(+1)}}, {{$random_digits(8)}}.
-- Sensitive values in responses are masked (***1234); assertions and extract use the real values.
-- Mutating operations run only where the environment allows them. Production environments are refused.
+Service-layer test tools for TEST environments (mobile banking WCF and other services). Never use a terminal,
+PowerShell, curl or Invoke-WebRequest for service calls - use these tools.
+- list_tests: what is defined - systems, operations (işlemler) with their inputs, tests, test approaches
+  (sınır değer, eşdeğerlik, pairwise, negatif ...). Use names from here; ask for a definition by name to edit it.
+- run_test(test, customer, environment): runs a defined test with the given customer number. Login, OTP, session and
+  the request envelope are done by the server. Results: geçti / kaldı / gözlem. A 'gözlem' (expected '?') is NOT
+  a pass or fail: show the observed behaviour to the user and ask whether it is correct, then update the test.
+  'ai_yorum' questions are for you to answer from the given data - clearly marked as your opinion.
+- call_operation(operation, customer, inputs): try one operation (exploration).
+- generate_tests(approach, operation): a draft table test made by code from the operation's definition. Show it,
+  run it with run_test(content=...), save it with save_definition when the user approves.
+- save_definition(kind, content): validated save of an islem / test / yaklasim (/ sistem). New ones are 'taslak'.
+  To change an existing one, read it with list_tests(kind, name) and pass its 'surum'.
+- import_log(path): the server reads a mobile app log or HAR and proposes draft operations (preview); apply=true
+  saves them as drafts after the user approves. save_secrets=true stores the user's own credentials from the log in
+  the local gizli.yaml (never shown).
+- Not defined -> say so and offer import_log; never invent operations, fields or results.
+- Checks are short lines: başarılı | başarısız | süre < 3 sn | X sayısı >= 1 | X boş değil | X = Y | X eşleşir ^TR |
+  X arasında a ve b | X içerir y | hata kodu = KOD | her LISTE için A <= B. Prefer rules over fixed values for data
+  that changes (balances, rates, dates).
+- Values shown as *** are masked. Production environments are refused.
 """
 
 mcp = FastMCP("service-test-mcp", instructions=INSTRUCTIONS)
@@ -99,11 +105,13 @@ def _service_public(e: Engine, svc: Any, environment: str | None) -> dict[str, A
     runtime = e.profiles.get(svc.name)
     if runtime is not None:
         out.update(runtime.profile.public(environment or e.settings.default_environment))
-        out["call_with"] = "call_operation"
+        out["call_with"] = "call_profile_operation"
     return out
 
 
 def _error(exc: BaseException) -> dict[str, Any]:
+    if isinstance(exc, TanimHatasi):
+        return {"success": False, "error": {"type": "TanimHatasi", "problems": exc.problems}}
     if isinstance(exc, ScenarioError):
         return {"success": False, "error": {"type": "ScenarioError", "problems": exc.problems}}
     if isinstance(exc, _EXPECTED):
@@ -288,7 +296,7 @@ async def list_operations(service: str, search: str | None = None, kind: str | N
 
 
 @mcp.tool(annotations=CALL)
-async def call_operation(service: str, operation: str, params: dict[str, Any] | None = None,
+async def call_profile_operation(service: str, operation: str, params: dict[str, Any] | None = None,
                          test_customer: str | None = None, environment: str | None = None,
                          extract: dict[str, str] | None = None, assertions: list[dict[str, Any]] | None = None,
                          fresh_session: bool = False) -> str:
@@ -330,16 +338,199 @@ async def list_test_customers(service: str, environment: str | None = None) -> s
 
 @mcp.tool(annotations=CALL)
 async def end_sessions(service: str | None = None, environment: str | None = None,
-                       test_customer: str | None = None) -> str:
-    """Log out and release test_customer leases so others can use those test customers. Without arguments: all
-    sessions of this server."""
+                       customer: str | None = None) -> str:
+    """Log out and free the test customers so others (another window, agent, CI) can use them. Without arguments:
+    every session of this server. Call it when the testing is done."""
     def run() -> dict[str, Any]:
         e = engine()
         names = [e.profile(service).service] if service else list(e.profiles)
         ended = []
         for name in names:
-            ended += [{"service": name, **x} for x in e.profiles[name].end_sessions(environment, test_customer)]
+            ended += [{"service": name, **x} for x in e.profiles[name].end_sessions(environment, customer)]
         return {"ended": ended}
+    return await _call(run)
+
+
+# -- definitions (tanimlar): the default tool set ----------------------------------------------------------------
+def _ozet_islem(k: Any) -> dict[str, Any]:
+    v = k.veri
+    girdiler = {}
+    for ad, g in (v.get("girdiler") or {}).items():
+        text = g.get("tip") or "metin"
+        if g.get("zorunlu"):
+            text += ", zorunlu"
+        if "varsayilan" in g:
+            text += f", varsayılan {g['varsayilan']}"
+        if g.get("kaynak"):
+            text += f", verilmezse: {g['kaynak']['islem']}"
+        girdiler[ad] = text
+    out = {"ad": k.ad, "tur": v.get("tur", "bilinmiyor"), "durum": v.get("durum", "taslak"), "girdiler": girdiler}
+    if v.get("aciklama"):
+        out["aciklama"] = v["aciklama"]
+    if v.get("tarih_araligi"):
+        out["tarih_araligi"] = v["tarih_araligi"]
+    return out
+
+
+@mcp.tool(annotations=READ)
+async def list_tests(kind: str | None = None, name: str | None = None, search: str | None = None) -> str:
+    """What is defined: systems (environments), operations (işlemler) with inputs, tests and test approaches.
+    kind = sistem | islem | test | yaklasim narrows the list; with name you get that whole definition (YAML) and its
+    'surum' (needed to save a change). search filters by text."""
+    def run() -> dict[str, Any]:
+        e = engine()
+        depo = e.depo
+        if name:
+            if not kind:
+                raise ValueError("name ile birlikte kind verin (sistem, islem, test, yaklasim)")
+            k = depo.gerekli(kind, name)
+            import yaml
+
+            return e.view({"tur": kind, "ad": k.ad, "surum": k.surum, "dosya": str(k.yol),
+                           "icerik": yaml.safe_dump(k.veri, allow_unicode=True, sort_keys=False, width=120)}, 60000)
+        kinds = [kind] if kind else list(KLASORLER)
+        out: dict[str, Any] = {"tanim_klasoru": str(depo.kok)}
+
+        def keep(k: Any) -> bool:
+            return not search or search.lower() in json.dumps(k.veri, ensure_ascii=False).lower()
+
+        if "sistem" in kinds:
+            out["sistemler"] = [{"ad": k.ad, "ortamlar": list((k.veri.get("ortamlar") or {})),
+                                 "calisiyor": k.ad in e.profiles} for k in depo.hepsi("sistem") if keep(k)]
+            out["varsayilan_ortam"] = e.settings.default_environment
+        if "islem" in kinds:
+            out["islemler"] = [_ozet_islem(k) for k in depo.hepsi("islem") if keep(k)]
+        if "test" in kinds:
+            out["testler"] = [{"test": k.ad, "durum": k.veri.get("durum", "taslak"),
+                               "tur": "tablo" if k.veri.get("ornekler") else "adımlı",
+                               "islemler": [a["islem"] for a in k.veri.get("adimlar") or []] or [k.veri.get("islem")],
+                               "etiketler": k.veri.get("etiketler") or [], "aciklama": k.veri.get("aciklama", "")}
+                              for k in depo.hepsi("test") if keep(k)]
+        if "yaklasim" in kinds:
+            out["yaklasimlar"] = [{"yaklasim": k.ad, "diger_adlar": k.veri.get("diger_adlar") or [],
+                                   "ne_zaman": k.veri.get("ne_zaman", ""),
+                                   "uretim": "ajan" if k.veri["uretici"] == "ajan" else "otomatik (kodla)"}
+                                  for k in depo.hepsi("yaklasim") if keep(k)]
+        if depo.yukleme_hatalari:
+            out["hatali_tanimlar"] = depo.yukleme_hatalari
+        if not any(depo.hepsi(t) for t in KLASORLER):
+            out["not"] = f"Tanım yok. Klasör: {depo.kok} (STM_TANIMLAR ile değiştirilebilir)."
+        return e.view(out, 60000)
+    return await _call(run)
+
+
+@mcp.tool(annotations=CALL)
+async def run_test(test: str | None = None, customer: str | None = None, environment: str | None = None,
+                   content: str | None = None, inputs: dict[str, Any] | None = None,
+                   tags: list[str] | None = None) -> str:
+    """Run a defined test (by name) with a customer number, or a draft given as YAML 'content'. With 'tags' (and no
+    test) every approved test having one of the tags runs. Returns per step/row: geçti, kaldı (with the failed
+    checks and a masked response summary), gözlem (expected '?': ask the user), hata (could not run);
+    and 'ai_yorum' questions for you."""
+    def run() -> dict[str, Any]:
+        e = engine()
+        k = Kosucu(e)
+        if tags and not test and not content:
+            wanted = {t.lower() for t in tags}
+            tests = [t for t in e.depo.hepsi("test") if t.veri.get("durum") == "onayli" and
+                     wanted & {x.lower() for x in t.veri.get("etiketler") or []}]
+            if not tests:
+                raise ValueError(f"'{', '.join(tags)}' etiketli onaylı test yok")
+            results = [k.kos(t.ad, None, customer, environment, inputs) for t in tests]
+            ozet = {s: sum(1 for r in results if r["sonuc"] == s) for s in ("geçti", "kaldı", "gözlem var")}
+            for r in results:
+                if r["sonuc"] == "geçti":
+                    r.pop("adimlar", None)
+                    r.pop("satirlar", None)
+            return e.view({"ozet": {k2: v for k2, v in ozet.items() if v}, "testler": results}, 60000)
+        return e.view(k.kos(test, content, customer, environment, inputs), 60000)
+    return await _call(run)
+
+
+@mcp.tool(annotations=CALL)
+async def call_operation(operation: str, customer: str | None = None, inputs: dict[str, Any] | None = None,
+                         environment: str | None = None, checks: list[str] | None = None) -> str:
+    """Call one defined operation (işlem) by its name with friendly inputs, e.g.
+    call_operation("Hesap hareketleri", customer="1000001", inputs={"baslangic": "bugün-30"}). Defaults, dates and
+    inputs taken from other operations are filled in; login is automatic. checks = optional check lines.
+    Returns business result, the inputs that were sent and a masked response."""
+    def run() -> dict[str, Any]:
+        e = engine()
+        k = Kosucu(e)
+        islem = e.depo.gerekli("islem", operation)
+        env = e.settings.environment(environment).name
+        result, etkin = k.cagir(islem, inputs, customer, env, origin="tool")
+        _last.clear()
+        _last.update(result)
+        out: dict[str, Any] = {"islem": islem.ad, "ortam": env, "musteri": customer,
+                               "basarili": bool((result.get("business") or {}).get("success")),
+                               "girdi": e.view(etkin), "sure_ms": result.get("elapsed_ms"),
+                               "http": result.get("status")}
+        if (result.get("business") or {}).get("errors"):
+            out["hatalar"] = result["business"]["errors"]
+        if result.get("error"):
+            out["baglanti_hatasi"] = result["error"]
+        if checks:
+            from .tanim.kontrol import kontrol_et
+
+            res = kontrol_et([str(c) for c in checks], result, k.hata_yollari(islem))
+            out["kontroller_gecti"] = all(c["gecti"] for c in res)
+            out["kontroller"] = e.view(res)
+        out["yanit"] = e.view(result.get("body"), 30000)
+        return out
+    return await _call(run)
+
+
+@mcp.tool(annotations=CALL)
+async def save_definition(kind: str, content: str, version: str | None = None) -> str:
+    """Validate and save a definition. kind = islem | test | yaklasim | sistem; content = the YAML text.
+    Problems (unknown operation or input, a check line that does not parse ...) are returned and nothing is saved.
+    New definitions get durum: taslak unless the user approved them (durum: onayli). To change an existing one pass
+    the 'surum' you read with list_tests(kind, name)."""
+    def run() -> dict[str, Any]:
+        import yaml
+
+        e = engine()
+        try:
+            data = yaml.safe_load(content)
+        except Exception as exc:  # noqa: BLE001
+            raise TanimHatasi([f"YAML okunamadı: {exc}"]) from None
+        if not isinstance(data, dict):
+            raise TanimHatasi(["içerik bir eşleme (anahtar: değer) olmalı"])
+        kayit = e.depo.kaydet(kind, data, version)
+        e.reload_definitions()
+        return {"kaydedildi": kayit.ad, "tur": kind, "durum": kayit.veri.get("durum"), "surum": kayit.surum,
+                "dosya": str(kayit.yol)}
+    return await _call(run)
+
+
+@mcp.tool(annotations=READ)
+async def generate_tests(approach: str, operation: str, common_inputs: dict[str, Any] | None = None) -> str:
+    """Make a draft table test for an operation with a test approach (e.g. "sınır değer", "pairwise", "negatif",
+    "eşdeğerlik"; list_tests shows them). Rule-based approaches are generated by code from the operation's
+    definition (deterministic); 'ajan' approaches return their rules for you to write the table. Missing limits are
+    reported in 'notlar'. Nothing is saved or called: show it, run it with run_test(content=...), save on approval."""
+    def run() -> dict[str, Any]:
+        import yaml
+
+        e = engine()
+        out = Uretec(e.depo).uret(approach, operation, common_inputs)
+        if "test" in out:
+            out["icerik"] = yaml.safe_dump(out.pop("test"), allow_unicode=True, sort_keys=False, width=120)
+        return e.view(out, 60000)
+    return await _call(run)
+
+
+@mcp.tool(annotations=CALL)
+async def import_log(path: str | None = None, content: str | None = None, environment: str | None = None,
+                     apply: bool = False, save_secrets: bool = False) -> str:
+    """Read a traffic log (mobile app transaction log or HAR) ON THE SERVER and propose draft operations for what is
+    not defined yet (inputs, fixed fields, kind). The raw log never reaches you. apply=false is a preview; after the
+    user approves, apply=true saves the drafts. save_secrets=true copies the system's secret values (app passwords,
+    the common test password, the fixed OTP) from the log into the local gizli.yaml of the detected environment."""
+    def run() -> dict[str, Any]:
+        e = engine()
+        return e.view(LogdanTanim(e).calistir(path, content, environment, apply, save_secrets), 60000)
     return await _call(run)
 
 
@@ -440,17 +631,41 @@ async def reload_config() -> str:
     return await _call(run)
 
 
-TOOL_NAMES = ("list_services", "describe_service", "describe_operation", "check_service", "list_operations",
-              "call_operation", "list_test_customers", "end_sessions", "import_traffic_log", "soap_call", "rest_call",
-              "session_variables", "check_last_response", "validate_scenario", "run_scenario", "run_test_suite",
-              "reload_config")
-# The smaller set for weaker models (standalone agent --toolset profile): no raw SOAP/REST.
-PROFILE_TOOL_NAMES = ("list_services", "list_operations", "describe_operation", "call_operation", "list_test_customers",
-                      "end_sessions", "import_traffic_log", "check_last_response", "validate_scenario",
-                      "run_scenario", "run_test_suite")
+# The default tool set (STM_TOOLSET=temel): definitions, tests, approaches. Seven tools, plain names.
+TEMEL_TOOL_NAMES = ("list_tests", "run_test", "call_operation", "save_definition", "generate_tests", "import_log",
+                    "end_sessions")
+# STM_TOOLSET=uzman adds the raw SOAP/REST, profile and YAML-scenario tools.
+UZMAN_TOOL_NAMES = ("list_services", "describe_service", "describe_operation", "check_service", "list_operations",
+                    "call_profile_operation", "list_test_customers", "import_traffic_log", "soap_call", "rest_call",
+                    "session_variables", "check_last_response", "validate_scenario", "run_scenario",
+                    "run_test_suite", "reload_config")
+TOOL_NAMES = TEMEL_TOOL_NAMES + UZMAN_TOOL_NAMES
+TOOLSETS = {"temel": TEMEL_TOOL_NAMES, "uzman": TOOL_NAMES}
+
+
+def toolset_name(value: str | None = None) -> str:
+    name = (value or os.environ.get("STM_TOOLSET") or "temel").strip().lower()
+    name = {"basic": "temel", "default": "temel", "profile": "temel", "expert": "uzman", "all": "uzman"}.get(name,
+                                                                                                         name)
+    if name not in TOOLSETS:
+        raise SystemExit(f"STM_TOOLSET must be one of {', '.join(TOOLSETS)}")
+    return name
+
+
+def apply_toolset(value: str | None = None) -> tuple[str, ...]:
+    """Remove the tools that are not in the selected set (before the server starts)."""
+    keep = TOOLSETS[toolset_name(value)]
+    for name in TOOL_NAMES:
+        if name not in keep:
+            try:
+                mcp.remove_tool(name)
+            except Exception:  # noqa: BLE001 - already removed
+                pass
+    return keep
 
 
 def run_stdio() -> None:
+    apply_toolset()
     mcp.run("stdio")
 
 
@@ -459,6 +674,7 @@ def run_http(host: str, port: int, token: str | None) -> None:
     import uvicorn
     from mcp.server.transport_security import TransportSecuritySettings
 
+    apply_toolset()
     local = host in ("127.0.0.1", "localhost", "::1")
     if not local:
         if not token:

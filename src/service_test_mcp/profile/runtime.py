@@ -135,7 +135,17 @@ class ProfileRuntime:
 
     def _test_customer_name(self, env: EnvironmentConfig, test_customer: str | None) -> str:
         test_customers = self.profile.environment(env.name).test_customers
+        if test_customer is not None and str(test_customer).strip() and self.profile.adhoc_field \
+                and str(test_customer) not in test_customers:
+            return str(test_customer).strip()          # a customer number given in the request
+        default = self.profile.environment(env.name).default_customer
+        if not test_customer and default:
+            return str(default)
+        if not test_customer and self.profile.adhoc_field and not test_customers:
+            raise ProfileError(f"Hangi müşteriyle? '{self.service}' için müşteri numarası verin (customer=...) "
+                               f"ya da '{env.name}' ortamına varsayilan_musteri yazın.")
         if test_customer:
+            test_customer = str(test_customer)
             if test_customer not in test_customers:
                 raise ProfileError(f"Unknown test_customer '{test_customer}' for '{self.service}' in environment "
                                    f"'{env.name}'. "
@@ -154,7 +164,8 @@ class ProfileRuntime:
                  operation: str) -> Context:
         env_vars = {**self.profile.environment(env.name).variables, **env.variables}
         return Context(variables={"session": session_vars, "test_customer": test_customer_vars, "operation": operation},
-                       env_variables=env_vars, on_secret=self.engine.masker.add_secret)
+                       env_variables=env_vars, on_secret=self.engine.masker.add_secret,
+                       secrets=self.engine.secrets(env.name))
 
     # -- one HTTP exchange ----------------------------------------------------------------------------------------
     def build_request(self, env: EnvironmentConfig, op: Operation, params: dict[str, Any] | None,
@@ -164,6 +175,8 @@ class ProfileRuntime:
         if test_customer_vars:
             body.update(ctx.render(self.profile.session_envelope))
         body.update(ctx.render(params or {}))
+        if self.profile.dotted_paths:          # definitions: a field set to null is not sent at all
+            body = {k: v for k, v in body.items() if v is not None}
         headers = {str(k): str(v) for k, v in (ctx.render(self.profile.headers) or {}).items()
                    if v is not None and v != ""}
         path = self.profile.url.replace("{path}", op.path).replace("{operation}", op.name)
@@ -194,7 +207,11 @@ class ProfileRuntime:
     def business(self, result: dict[str, Any]) -> dict[str, Any]:
         if result.get("error"):
             return {"success": False, "errors": [result["error"].get("message")]}
-        if self.profile.success:
+        if self.profile.success_lines:
+            from ..tanim.kontrol import kontrol_et
+
+            ok = all(c["gecti"] for c in kontrol_et(self.profile.success_lines, result, self.profile.error_paths))
+        elif self.profile.success:
             ok = all(c["passed"] for c in evaluate(self.profile.success, result))
         else:
             ok = int(result.get("status") or 0) < 400
@@ -203,7 +220,7 @@ class ProfileRuntime:
             errors: list[Any] = []
             for path in self.profile.error_paths:
                 try:
-                    errors += [v for v in find(result.get("body"), path) if v not in (None, "")]
+                    errors += [v for v in self._find(result.get("body"), path) if v not in (None, "")]
                 except Exception:  # noqa: BLE001 - a body that is not JSON
                     pass
             if not errors and result.get("status") and int(result["status"]) >= 400:
@@ -212,6 +229,10 @@ class ProfileRuntime:
         return out
 
     def _expired(self, result: dict[str, Any]) -> bool:
+        if self.profile.expired_lines:
+            from ..tanim.kontrol import kontrol_et
+
+            return all(c["gecti"] for c in kontrol_et(self.profile.expired_lines, result, self.profile.error_paths))
         rules = self.profile.session.expired_when
         return bool(rules) and all(c["passed"] for c in evaluate(rules, result))
 
@@ -261,7 +282,7 @@ class ProfileRuntime:
                                f"{result['business'].get('errors')}")
         out: dict[str, Any] = {}
         for name, path in step.extract.items():
-            values = find(result.get("body"), path)
+            values = self._find(result.get("body"), path)
             if not values:
                 raise ProfileError(f"test_customer '{test_customer.name}': {path} not found in the {op.name} response")
             out[name] = values[0]
@@ -273,7 +294,7 @@ class ProfileRuntime:
             if key:
                 return {}, key
             return self._busy(env, name, [self._lease_key(env.name, {}, name)])
-        spec = self.profile.environment(env.name).test_customers[name]
+        spec = self._spec(env, name)
         deadline = time.monotonic() + self.wait_s
         while True:
             tried: list[str] = []
@@ -295,6 +316,19 @@ class ProfileRuntime:
             if time.monotonic() >= deadline:
                 return self._busy(env, name, tried)
             time.sleep(0.5)
+
+    def _spec(self, env: EnvironmentConfig, name: str) -> CustomerSpec:
+        defined = self.profile.environment(env.name).test_customers
+        if name in defined:
+            return defined[name]
+        return CustomerSpec(name=name, pool=[{self.profile.adhoc_field or "no": name}])
+
+    def _find(self, body: Any, path: str) -> list[Any]:
+        if self.profile.dotted_paths:
+            from ..tanim.kontrol import coz
+
+            return coz(body, path)
+        return find(body, path)
 
     def _busy(self, env: EnvironmentConfig, name: str, keys: list[str]) -> Any:
         holders = []
@@ -322,7 +356,7 @@ class ProfileRuntime:
                 raise LoginFailed(f"login step {op.name} failed for test_customer '{st.test_customer}' ({env.name}): "
                                   f"{result['business'].get('errors') or result.get('status')}")
             for name, path in step.extract.items():
-                values = find(result.get("body"), path)
+                values = self._find(result.get("body"), path)
                 if not values:
                     raise LoginFailed(f"login step {op.name}: {path} not found in the response")
                 st.vars[name] = values[0]

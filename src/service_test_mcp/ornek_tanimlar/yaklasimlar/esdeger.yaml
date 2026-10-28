@@ -1,0 +1,8 @@
+yaklasim: Eşdeğerlik sınıfları
+diger_adlar: [equivalence partitioning, equivalence class, eşdeğer, esdeger, denklik sınıfları]
+aciklama: Aynı davranması beklenen değerler bir sınıf sayılır; her sınıftan bir temsilci denenir.
+ne_zaman: Seçenekli, evet/hayır, aralıklı sayı ve tarih girdileri.
+uretici: esdeger
+beklenen_disari: hata
+sinir: 40
+durum: onayli

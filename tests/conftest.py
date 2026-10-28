@@ -54,8 +54,48 @@ def engine(demo_config):
 
 def clean_env(**extra: str) -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if not k.startswith("STM_")}
+    env["STM_TOOLSET"] = "uzman"          # every tool; tests of the default set pass STM_TOOLSET="temel"
     env.update(extra)
     return env
+
+
+def write_tanimlar(tmp: Path, port: int) -> Path:
+    """The packaged ready definitions, pointed at the in-process demo service."""
+    import shutil
+
+    src = ROOT / "src" / "service_test_mcp" / "ornek_tanimlar"
+    target = tmp / "tanimlar"
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(src, target)
+    system = target / "sistemler" / "mobil-bankacilik.yaml"
+    system.write_text(system.read_text("utf-8").replace(":8899", f":{port}"), encoding="utf-8")
+    return target
+
+
+@pytest.fixture()
+def tanimlar(tmp_path, demo_port, monkeypatch):
+    from service_test_mcp import demo_mobile
+
+    demo_mobile.reset()
+    target = write_tanimlar(tmp_path, demo_port)
+    monkeypatch.setenv("STM_TANIMLAR", str(target))
+    monkeypatch.setenv("STM_HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("STM_CONFIG", raising=False)
+    monkeypatch.delenv("STM_LOCKS_DIR", raising=False)
+    monkeypatch.delenv("STM_GIZLI", raising=False)
+    return target
+
+
+@pytest.fixture()
+def tanim_engine(tanimlar):
+    from service_test_mcp.engine import Engine
+
+    e = Engine()
+    assert e.load_error is None and not e.settings.broken and not e.depo.yukleme_hatalari, \
+        (e.load_error, e.settings.broken, e.depo.yukleme_hatalari)
+    yield e
+    e.close()
 
 
 MOBILE = ROOT / "examples" / "mobile"

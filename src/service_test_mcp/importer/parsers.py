@@ -54,6 +54,12 @@ _DATA = re.compile(r"^(RequestData|ResponseData)\s*:", re.M)
 _HEADER = re.compile(r"^([A-Za-z][A-Za-z ]*?)\s*:\s*(.*)$")
 
 
+def _http_method(value: str | None) -> str:
+    """'post', 'POST' or the iOS app's 'HTTPMethod(rawValue: "POST")' -> 'POST'."""
+    m = re.search(r"(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)", str(value or ""), re.IGNORECASE)
+    return m.group(1).upper() if m else "POST"
+
+
 def parse_transaction_log(text: str) -> tuple[list[Exchange], list[str]]:
     exchanges: list[Exchange] = []
     warnings: list[str] = []
@@ -76,7 +82,7 @@ def parse_transaction_log(text: str) -> tuple[list[Exchange], list[str]]:
         key = (name, url)
         body = _body(block[match.end():])
         if match.group(1) == "RequestData":
-            ex = Exchange(index=len(exchanges), method=(meta.get("method") or "POST").upper(), url=url, name=name,
+            ex = Exchange(index=len(exchanges), method=_http_method(meta.get("method")), url=url, name=name,
                           timestamp=meta.get("date"), request_body=body)
             exchanges.append(ex)
             pending[key].append(ex)

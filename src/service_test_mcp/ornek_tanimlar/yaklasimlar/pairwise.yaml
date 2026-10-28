@@ -1,0 +1,7 @@
+yaklasim: Pairwise (ikili kombinasyon)
+diger_adlar: [pairwise, pairwise testing, all-pairs, ikili kombinasyon, kombinasyon]
+aciklama: Tüm kombinasyonlar yerine her iki girdinin her değer çifti en az bir kez denenir; az testle çok kapsama.
+ne_zaman: Değer kümesi belli (seçenekli, evet/hayır, sınırlı sayı) en az iki girdisi olan işlemler.
+uretici: pairwise
+sinir: 50
+durum: onayli

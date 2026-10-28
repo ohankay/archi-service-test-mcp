@@ -13,7 +13,7 @@ LLM settings (environment variables or flags):
     STM_AGENT_AZURE_API_VERSION (optional) e.g. 2024-10-21 -> Azure OpenAI deployment URL style
     STM_AGENT_VERIFY_TLS        true | false | path to CA bundle
     STM_AGENT_SYSTEM_PROMPT     (optional) path to a text file replacing the default system prompt
-    STM_AGENT_TOOLSET           all | profile (only the profile tools - simpler for small company models)
+    STM_AGENT_TOOLSET           temel (default, 7 tools) | uzman (every tool)
 The MCP server it starts reads the usual STM_CONFIG / service secrets from the same environment.
 """
 
@@ -28,7 +28,7 @@ from typing import Any
 
 import anyio
 
-from ..server import PROFILE_TOOL_NAMES
+from ..server import TOOLSETS, toolset_name
 from .core import DEFAULT_SYSTEM_PROMPT, Agent, AgentConfig, mcp_session
 from .llm import LLMConfig, LLMError
 
@@ -67,13 +67,12 @@ def build_config(args: argparse.Namespace) -> AgentConfig:
     llm = LLMConfig(base_url=base_url, model=model, api_key=api_key,
                     azure_api_version=os.environ.get("STM_AGENT_AZURE_API_VERSION") or None,
                     temperature=args.temperature, verify_tls=_verify(os.environ.get("STM_AGENT_VERIFY_TLS")))
-    toolset = args.toolset or os.environ.get("STM_AGENT_TOOLSET") or "all"
-    if toolset not in ("all", "profile"):
-        raise SystemExit("--toolset must be 'all' or 'profile'")
-    allowed = list(PROFILE_TOOL_NAMES) if toolset == "profile" else None
-    return AgentConfig(llm=llm, mcp_url=args.mcp_url or os.environ.get("STM_AGENT_MCP_URL") or None,
-                       mcp_token=os.environ.get("STM_HTTP_TOKEN") or None, system_prompt=system_prompt,
-                       max_steps=args.max_steps, allowed_tools=allowed)
+    toolset = toolset_name(args.toolset or os.environ.get("STM_AGENT_TOOLSET") or os.environ.get("STM_TOOLSET"))
+    cfg = AgentConfig(llm=llm, mcp_url=args.mcp_url or os.environ.get("STM_AGENT_MCP_URL") or None,
+                      mcp_token=os.environ.get("STM_HTTP_TOKEN") or None, system_prompt=system_prompt,
+                      max_steps=args.max_steps, allowed_tools=list(TOOLSETS[toolset]))
+    cfg.server_env = {**os.environ, "STM_TOOLSET": toolset}   # the server it starts offers the same set
+    return cfg
 
 
 async def _check(cfg: AgentConfig) -> int:
@@ -165,9 +164,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--system-prompt", help="file replacing the default system prompt")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-steps", type=int, default=25, help="max LLM turns per request")
-    parser.add_argument("--toolset", choices=("all", "profile"),
-                        help="'profile' gives the model only the profile tools (fewer choices for small models); "
-                             "default all (STM_AGENT_TOOLSET)")
+    parser.add_argument("--toolset", choices=("temel", "uzman", "all", "profile"),
+                        help="temel (default): the 7 definition/test tools; uzman: also raw SOAP/REST, profile "
+                             "and YAML-scenario tools (STM_AGENT_TOOLSET)")
     parser.add_argument("--mcp-url", help="streamable HTTP URL of a running server (default: start one over stdio)")
     parser.add_argument("--check", action="store_true", help="test LLM + MCP connectivity and exit")
     parser.add_argument("-v", "--verbose", action="store_true", help="also print tool results")

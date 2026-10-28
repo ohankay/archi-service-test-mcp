@@ -1,0 +1,38 @@
+ad: Hesap listesi
+aciklama: Müşterinin açık vadesiz hesapları, gruplara ayrılmış olarak (Hesaplarım ekranı).
+metod: AccountListByGroup
+yol: BOA.Integration.MobileBanking.Account/AccountService.svc
+tur: okuma
+oturum: true
+durum: onayli
+girdiler:
+  sadece_tl:
+    alan: ShowOnlyTLAccounts
+    tip: evet_hayir
+    varsayilan: hayır
+    aciklama: Yalnızca TL hesaplar
+  bakiyesizleri_goster:
+    alan: ShowAccountsWithNoBalance
+    tip: evet_hayir
+    varsayilan: hayır
+sabit:
+  MainResourceCode: MOBROTHRBN
+  MainResourceId: 21722
+  ListType: 2
+  ShowOnlyOpenAccounts: true
+  ShowOnlyCurrentAccounts: true
+  ShowSharedAccounts: true
+  ShowSharedAccountsWithMultiSignature: true
+  ShowOnlyParticipationAccounts: false
+  ShowOnlyAccountsHasAvailableBalance: false
+  ShowOnlyAccountsHasNoAvailableBalance: false
+  ShowOnlyInvestmentAccounts: false
+  DontShowInvestmentAccounts: false
+  DontShowSalaryAndStockAccounts: false
+  DontShowFinancialBlockedAccounts: false
+  DontShowPreciousMetals: false
+  DontShowUnPreciousMetals: false
+  ShowDipBipDepositAccounts: false
+  ShowAccountsWithAccountNumberList: false
+kontroller:
+  - AccountGroups var

@@ -1,11 +1,12 @@
 ---
 mode: agent
-description: Bir servis operasyonu icin YAML test senaryosu uret ve kostur
-tools: ['service-test/*', 'edit']
+description: Tarif edilen bir akış için adımlı test yaz ve koş
+tools: ['service-test/*']
 ---
-`${input:servis}` servisinin `${input:operasyon}` operasyonu icin test senaryosu hazirla:
+Şu akış için bir test hazırla: `${input:akis}`
 
-1. `describe_operation` ile girdi/cikti semasini incele.
-2. Bir pozitif ve en az iki negatif durum icin adimlari tasarla (eksik/gecersiz girdi, yetkisiz erisim).
-3. `scenarios/` altina YAML olarak yaz; her adimda `fault`/`status` ve is kurali assertion'lari olsun.
-4. `validate_scenario` ile dogrula, `run_scenario` ile kostur ve sonucu adim adim raporla.
+1. `list_tests` ile kullanılacak işlemleri bul; eksik işlem varsa söyle.
+2. Adımlı bir test yaz (`adimlar`): bir adımın çıktısı sonrakinin girdisiyse `al` ile aktar; her adıma en az bir iş
+   kuralı kontrolü koy; değişen veriler için kural yaz. Kontrol olarak yazılamayan beklentileri `ai_yorum` yap.
+3. `run_test(content=..., customer=${input:musteri})` ile koş, sonucu adım adım anlat.
+4. Onaylarsam `save_definition` ile kaydet.

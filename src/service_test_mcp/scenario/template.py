@@ -5,8 +5,8 @@
 * ``{{test_customer.Field}}`` / ``{{session.Key}}`` - profile services: the test customer's fields and the login
   session.
   They are filled in by the profile when the request is built, so scenario rendering leaves them as they are.
-* ``{{secret.STM_SECRET_X}}`` - an OS environment variable whose name starts with ``STM_SECRET_`` (passwords for
-  login steps). Its value is redacted from every output.
+* ``{{secret.STM_SECRET_X}}`` / ``{{secret.x}}`` - a secret: the OS environment variable ``STM_SECRET_X``, else
+  ``x`` from the local gizli.yaml of the environment. Its value is redacted from every output.
 * ``{{$uuid}}``, ``{{$now}}``, ``{{$today}}``, ``{{$timestamp}}``, ``{{$random_digits(8)}}``,
   ``{{$random_int(1,100)}}``, ``{{$date(+3)}}`` (today +/- days).
 
@@ -52,11 +52,14 @@ def lookup(data: Any, expr: str) -> Any:
 
 class Context:
     def __init__(self, variables: dict[str, Any] | None = None, env_variables: dict[str, Any] | None = None,
-                 on_secret: Callable[[str], None] | None = None, keep: tuple[str, ...] = ()) -> None:
+                 on_secret: Callable[[str], None] | None = None, keep: tuple[str, ...] = (),
+                 secrets: dict[str, Any] | None = None) -> None:
         self.variables: dict[str, Any] = dict(variables or {})
         self.env_variables = dict(env_variables or {})
         self.on_secret = on_secret
         self.keep = keep          # roots left as {{...}} for a later stage (e.g. "test_customer", "session")
+        self.secrets = secrets or {}   # local secret store (gizli.yaml) of the environment
+        self._depth = 0
 
     def _kept(self, expr: str) -> bool:
         return bool(self.keep) and expr.strip().split(".")[0].split("[")[0] in self.keep
@@ -92,18 +95,27 @@ class Context:
             return self._builtin(expr)
         if expr.startswith("env."):
             try:
-                return lookup(self.env_variables, expr[4:])
+                value = lookup(self.env_variables, expr[4:])
             except KeyError:
                 raise TemplateError(f"'{{{{{expr}}}}}': not in the environment's variables "
                                     f"(available: {', '.join(self.env_variables) or 'none'})") from None
+            if isinstance(value, str) and "{{" in value and self._depth < 5:   # e.g. "{{secret.X}}" in a variable
+                self._depth += 1
+                try:
+                    return self.render(value)
+                finally:
+                    self._depth -= 1
+            return value
         if expr.startswith("secret."):
             name = expr[7:]
-            if not name.startswith(SECRET_PREFIX):
-                raise TemplateError(f"'{{{{{expr}}}}}': only environment variables named {SECRET_PREFIX}* can be read")
-            value = os.environ.get(name)
+            env_name = name if name.startswith(SECRET_PREFIX) else SECRET_PREFIX + name.upper()
+            value = os.environ.get(env_name)
+            if (value is None or value == "") and name in self.secrets:
+                value = str(self.secrets[name])
             if not value:
-                raise TemplateError(f"'{{{{{expr}}}}}': environment variable {name} is not set (in VS Code add it to "
-                                    "the server's env in mcp.json with an ${input:...})")
+                raise TemplateError(f"'{{{{{expr}}}}}': secret is not set. Set the environment variable {env_name} "
+                                    "(in VS Code: the server's env in mcp.json with an ${input:...}) or put "
+                                    f"'{name}' into the local gizli.yaml for this environment.")
             if self.on_secret:
                 self.on_secret(value)
             return value

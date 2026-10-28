@@ -1,46 +1,75 @@
-# Yeni bir servis ailesi eklemek
+# Yeni bir sistem eklemek
 
-Yeni bir servis için yeni bir MCP yazılmaz. Sırasıyla şunlar yapılır:
+Yeni bir servis için yeni bir MCP yazılmaz. Sistem bir tanım dosyasıdır; işlemleri de logdan çıkarılır.
 
-1. **Servisin türünü belirleyin.**
-   - **HTTP + JSON, operasyon adıyla çağrılan servisler** (WCF `webHttpBinding`, kurum içi RPC tarzı API'ler): profil kullanın.
-   - **Klasik SOAP (WSDL var)** ve **OpenAPI'li REST** servisleri: profilsiz de çalışır (`soap_call` / `rest_call`, `describe_operation`).
-2. **`services.yaml` dosyasına servisi ekleyin.** Ortam bazlı `base_url` ve `profile:` alanlarını verin:
+## 1. Sistem tanımı
 
-   ```yaml
-   services:
-     KrediApi:
-       protocol: rest
-       base_url:
-         test: https://kredi-test.sirket.local/api
-         prep: https://kredi-prep.sirket.local/api
-       profile: profiles/kredi.profile.yaml
-   ```
+`tanimlar\sistemler\<ad>.yaml` dosyasını oluşturun. Örnek olarak `sistemler\mobil-bankacilik.yaml` dosyasını kopyalayıp şu alanları uyarlayabilirsiniz:
 
-3. **Profil dosyasını yazın.** `examples/mobile/profiles/mobil.profile.yaml` dosyasını kopyalayıp şu alanları uyarlayın:
-   - `request.url`: Operasyonun URL'deki yeri. Örneğin `"{path}/{operation}"` ya da `"v1/{operation}"`. `{path}` katalogdaki yoldur.
-   - `request.method`: Varsayılan HTTP metodu. Katalogda operasyon bazında değiştirilebilir.
-   - `request.envelope` / `session_envelope` / `headers`: Her isteğe eklenecek alanlar. Kullanılabilecek değişkenler `{{operation}}`, `{{session.X}}`, `{{test_customer.X}}`, `{{env.X}}` ve `{{secret.STM_SECRET_X}}`.
-   - `success`, `error_paths`: İş seviyesinde başarı kuralı ve hata mesajlarının yolları.
-   - `session`: Login adımları ve bunların `extract` alanları, `ttl_s`, `expired_when`, `logout`. Login gerektirmeyen servislerde `login` listesini boş bırakın.
-   - `test_customers` ve `environments.<env>.test_customers`: Test müşterileri ya da kullanıcıları. Gerekmiyorsa boş bırakın.
-   - `noise`, `importer.test_customer_fields`, `importer.secret_fields`: Log importu için.
-   - `catalog`: Katalog dosyasının yolu. Başlangıçta boş olabilir: `operations: {}`.
-4. **Kataloğu doldurun.** Uygulamanın ya da tarayıcının (HAR) logunu ajana verin: `import_traffic_log(path)`. Önizlemeyi inceleyin, `apply=true` ile yazın. Ardından `kind` alanı `unknown` kalan operasyonları sınıflandırın ve açıklama ekleyin.
-5. **Deneyin.** `call_operation` ile tek çağrı yapın, sonra senaryo yazıp `run_test_suite --env test` ile koşun.
-6. **YAML'ın yetmediği yerlerde hook yazın.** İmza, şifreleme ya da dinamik header gibi ihtiyaçlar için:
+| Alan | Ne yazılır |
+|---|---|
+| `ortamlar` | Her ortam için `adres` (işlem yolundan önceki kısım) ve o ortama özgü `degiskenler`. İsteğe bağlı: `varsayilan_musteri`, `degistirmeye_izin`. |
+| `degiskenler` | Tüm ortamlarda ortak değerler (`{{ortam.x}}`). |
+| `istek.adres_kalibi` | İşlemin URL'deki yeri. Varsayılan `"{yol}/{metod}"`. |
+| `istek.zarf` | Her istekte gönderilen alanlar. |
+| `istek.oturum_zarfi` | Yalnızca bir müşteriyle oturum açıkken eklenen alanlar. |
+| `istek.basliklar` | Header şablonları. |
+| `basari` | İş seviyesinde başarı kuralı, kontrol diliyle (ör. `Success = true`). |
+| `hata_alanlari` | Hata kodu ve mesajının yanıttaki yolları (ör. `Results.ErrorCode`). |
+| `oturum.giris` | Login adımları: `metod`, `yol`, `girdi`, `al` (yanıttan oturum değişkenine). Login yoksa boş bırakın. |
+| `oturum.cikis` | Logout adımı. |
+| `oturum.sure_sn`, `oturum.bitti_sayilir` | Oturum süresi ve oturumun bittiğini gösteren yanıt kuralı. |
+| `gurultu` | Logda yok sayılacak çağrılar (joker karakterle). |
+| `gizli_degerler` | Logdan yerel `gizli.yaml`'a alınacak değerler (`metod` + `alan`). |
+| `log_alanlari` | Logda müşteri alanı ve gizli alan sayılacaklar. |
 
-   ```python
-   # profiles/hooks.py      ->  profilde: hooks: hooks.py:KrediHooks
-   class KrediHooks:
-       def __init__(self, profile):
-           self.profile = profile
+**Değişkenler:**
+- `{{musteri.no}}`: çalıştırırken verilen müşteri numarası.
+- `{{oturum.X}}`: login yanıtlarından alınan değerler.
+- `{{ortam.x}}`: ortam değişkenleri.
+- `{{gizli.x}}`: `STM_SECRET_X` ortam değişkeni, yoksa yerel `gizli.yaml`.
+- `{{metod}}`: çağrılan işlemin teknik adı.
 
-       def prepare(self, request, ctx):        # request: method, path, headers, body
-           request["headers"]["X-Signature"] = imzala(request["body"], ctx["session"])
+Bir alanı bir adımda hiç göndermemek için değerine `null` yazın.
 
-       def inspect(self, result, ctx):         # yanıt sonrası (ör. ek iş kuralı)
-           pass
-   ```
+Şifre, token ve OTP'yi tanım dosyasına yazmayın. Ortam değişkenlerinde `"{{gizli.x}}"` diye referans verin.
 
-Ekip veya güvenlik ayrımı gerekiyorsa (ör. bir ekip yalnızca kendi servislerini görsün), aynı kurulumla ikinci bir MCP sunucusu tanımlayın ve `STM_CONFIG` ile farklı bir `services.yaml` gösterin. Kod değişmez.
+## 2. İşlemler
+
+Uygulamayı ya da tarayıcıyı ilgili ekranlarda kullanıp logu alın, sonra ajana verin:
+
+> "Bu logu import_log ile oku, yeni işlemleri göster."
+
+Ajan taslakları gösterir. Siz şunları belirlersiniz:
+- Türkçe adlar,
+- hangi girdilerin önemli olduğu,
+- girdilerin sınırları (`en_az`, `en_fazla`, `secenekler`, `tarih_araligi`),
+- işlemin türü (okuma / değiştirme).
+
+Taslaklar `apply=true` ile kaydedilir. İlk gerçek çağrıda (`call_operation`) yanıtın neye benzediği görülür ve kontroller buna göre yazılır.
+
+## 3. Testler
+
+- Hazır yaklaşımlarla üretin: "*X işlemini sınır değer ve negatif yaklaşımla tara*".
+- Ya da tarif edin: "*Önce hesap listesini al, ilk hesabın son 30 günlük hareketlerini getir, tarihler aralıkta olsun*".
+
+Ajan testi yazar, koşar ve onayınızla kaydeder. Onaylı testler `service-test-mcp --test hepsi` ile CI'da da koşar.
+
+## 4. YAML'ın yetmediği yerler
+
+İmza, şifreleme ya da dinamik header gibi ihtiyaçlar için sistem tanımına `kanca: kancalar.py:Sinif` yazılır. Dosya, sistem tanımının yanında durur. Sınıfın `prepare(request, ctx)` metodu istek gönderilmeden önce, `inspect(result, ctx)` metodu yanıt geldikten sonra çalışır:
+
+```python
+# tanimlar/sistemler/kancalar.py
+class Imza:
+    def __init__(self, profile):
+        self.profile = profile
+
+    def prepare(self, request, ctx):      # request: method, path, headers, body; ctx: operation, session ...
+        request["headers"]["X-Imza"] = imzala(request["body"], ctx["session"])
+
+    def inspect(self, result, ctx):       # yanıt geldikten sonra (isteğe bağlı)
+        pass
+```
+
+Ekip veya güvenlik ayrımı gerekiyorsa aynı kurulumla ikinci bir MCP sunucusu tanımlayın ve `STM_TANIMLAR` ile ona ayrı bir tanım klasörü verin.

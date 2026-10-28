@@ -1,0 +1,8 @@
+yaklasim: Negatif testler
+diger_adlar: [negative testing, negatif, hatalı girdi, zorunlu alan]
+aciklama: Zorunlu girdiler gönderilmez, sayı ve tarih alanlarına yanlış tipte değer gönderilir; servis anlamlı bir hatayla reddetmeli.
+ne_zaman: Zorunlu veya tipli girdisi olan işlemler.
+uretici: negatif
+beklenen_disari: hata
+sinir: 30
+durum: onayli

@@ -60,16 +60,11 @@ Kullanıcıya şu soruları tek mesajda sor (şifre SORMA):
 4. Veri değiştiren (mutating) operasyonlar: SOAP'ta operasyon adları (`TransferYap`, `*Sil`), REST'te `METHOD /yol` kalıpları.
 5. Kurumsal proxy veya kendi CA sertifikası gerekiyor mu?
 
-6. Mobil bankacılık WCF servisleri (veya operasyon adıyla çağrılan başka bir JSON servis ailesi) var mı? Varsa ortam bazında base URL'ler (örn. `https://.../BOA.Integration.MobileBranch`), test müşterileri (CustomerId vb.) ve test ortamındaki sabit OTP.
+6. Mobil bankacılık WCF servisleri test edilecek mi? Bunun için ek bir şey yazmana gerek yok: kurulum `tanimlar` klasörünü hazır tanımlarla (sistem, işlemler, yaklaşımlar, testler) doldurdu. Zip klasöründe `kurum-tanimlari` klasörü varsa gerçek ortam (ör. prep) tanımları da yüklendi. Yoksa kullanıcıya kuruma özel tanım paketini sormalısın; paketi aldığında şunu çalıştır: `& "$env:USERPROFILE\.service-test-mcp\Scripts\service-test-mcp.exe" --init --kaynak <paket klasörü> --force`.
 
-Sonra `templates/services.yaml` dosyasını `%USERPROFILE%\.service-test-mcp\services.yaml` olarak kopyala ve kullanıcının cevaplarıyla doldur. Şifreli her servis için `password_env: STM_PW_<SERVIS>` / `token_env: STM_TOKEN_<SERVIS>` gibi bir değişken adı ver.
+Sonra `templates/services.yaml` dosyasını `%USERPROFILE%\.service-test-mcp\services.yaml` olarak kopyala ve kullanıcının cevaplarıyla doldur. Bu adım yalnızca SOAP/REST servisleri (1-5. sorular) için gerekir; mobil servisler tanım dosyalarından gelir. Şifreli her servis için `password_env: STM_PW_<SERVIS>` / `token_env: STM_TOKEN_<SERVIS>` gibi bir değişken adı ver.
 
-Mobil servisler için (6. soru): bu klasördeki `mobile\profiles\mobil.profile.yaml` dosyasını `%USERPROFILE%\.service-test-mcp\profiles\` altına kopyala ve şunları uyarla:
-- `environments` altındaki ortam adlarını `services.yaml` ile aynı yap; personaları kullanıcının verdiği test müşterileriyle doldur. Kullanıcı vermediyse boş bırak ve söyle.
-- Uygulama şifresi gibi gizli değerleri `{{secret.STM_SECRET_MOBIL_APP_PASSWORD}}` biçiminde yaz. Değerin kendisini YAZMA.
-- `catalog: mobil.catalog.yaml` için içeriği `operations: {}` olan boş bir dosya oluştur. Katalog, kullanıcının logu `import_traffic_log` ile verdiğinde dolar.
-
-`services.yaml` içine servisi `protocol: rest`, ortam bazlı `base_url` ve `profile: profiles/mobil.profile.yaml` ile ekle. Test ortamlarında `allow_mutating: true` olmalı.
+Mobil servislerin gizli değerleri (uygulama şifreleri, ortak test şifresi, sabit OTP) hiçbir dosyaya elle yazılmaz. Kurulum bittikten sonra kullanıcı uygulamayı loglama modunda bir kez kullanır ve Copilot'a şunu yazar: "*<log dosyası> logunu import_log ile oku, gizli değerleri kaydetmeme izin veriyorum (save_secrets)*". Değerler yalnızca bu bilgisayardaki `gizli.yaml` dosyasına yazılır.
 
 Bağlantıyı test et (şifresiz tipler için; şifreli tiplerde Adım 6'ya bırak):
 
@@ -111,8 +106,8 @@ Kullanıcıya "Servis testleri için hazır bir custom agent ister misin?" diye 
 
 1. `Ctrl+Shift+P` → **MCP: List Servers** → **service-test** → **Start Server**. Güven onayı gelirse **Trust** deyin.
 2. Şifre/token tanımlandıysa VS Code her birini bir kez soracak ve güvenli depoda saklayacak.
-3. Copilot Chat → **Agent** modu → araç (🔧) simgesinde `service-test` altında 17 araç görünmeli.
-4. Test için: **"service-test check_service çalıştır"**. Demo için: **"demo/scenarios klasöründeki senaryoları run_test_suite ile koş"**. Mobil servis için: **"şu logu import_traffic_log ile oku: C:\...\TransactionLog.txt"**.
+3. Copilot Chat → **Agent** modu → araç (🔧) simgesinde `service-test` altında 7 araç görünmeli (`list_tests`, `run_test`, `call_operation`, `generate_tests`, `save_definition`, `import_log`, `end_sessions`). Ham SOAP/REST araçları için `mcp.json` içinde `"env": {"STM_TOOLSET": "uzman"}`.
+4. Test için: **"service-test check_service çalıştır"**. Demo için: **"demo/scenarios klasöründeki senaryoları run_test_suite ile koş"**. Mobil servis için: **"tanımlı testleri listele"**, sonra **"Kur bilgisi listeleme testini <müşteri no> ile prep'te çalıştır"**.
 5. Sorun olursa: **MCP: List Servers** → **service-test** → **Show Output**.
 
 Kurulum burada biter.
@@ -135,7 +130,8 @@ Kurulum burada biter.
 | `Max retries` / `Failed to resolve` | Adres yanlış, VPN/proxy gerekli. Ortamda `proxy:` tanımlayın. |
 | `The WSDL has no SOAP port` | Servis yalnızca `netTcpBinding` / `netNamedPipeBinding` sunuyor. Servis ekibinden test ortamı için `basicHttpBinding` endpoint'i isteyin. |
 | `is marked as mutating` | Operasyon `mutating_operations` listesinde. Gerçekten gerekiyorsa yalnızca test ortamında `allow_mutating: true` yapın. |
-| `is not in the catalog` | Profil servisinin kataloğunda bu operasyon yok. Operasyonun geçtiği bir logu `import_traffic_log` ile içe aktarın. |
+| `... tanımlı değil` | Bu işlem ya da test henüz tanımlanmamış. İşlem için o ekranın logunu `import_log` ile verin; test için `generate_tests` ya da ajandan yazmasını isteyin. |
+| `secret is not set` / `gizli.yaml` | Gizli değerler yüklenmemiş. Logu `import_log(save_secrets=true)` ile verin ya da `STM_SECRET_...` ortam değişkenlerini `mcp.json` içine ekleyin. |
 | `is unknown (not classified ...)` | Katalogda `kind: unknown`. Ortam `allow_mutating: false` ise çağrılamaz; katalogda `read` / `mutating` / `auth` olarak işaretleyin. |
 | `Test customer '...' is in use` | Bu test müşterisiyle başka bir pencere, ajan veya CI şu an login. Paralel login kapalıdır. `end_sessions` ile kendi oturumlarınızı kapatın, havuza müşteri ekleyin ya da başka bir test müşterisi kullanın. Kilit, sahibi kapanınca en geç session süresi (5 dk) sonunda düşer. |
 | `login step ... failed` | Login adımlarından biri `Success: false` döndü. Test müşterisi bilgilerini, OTP'yi ve uygulama şifresini (`STM_SECRET_...`) kontrol edin. |

@@ -1,0 +1,11 @@
+yaklasim: Kullanıcı yolculuğu
+diger_adlar: [user journey, uçtan uca akış, senaryo, end to end]
+aciklama: Gerçek bir kullanıcının ekranlar arasında izlediği yol, işlemler sırayla çağrılarak denenir.
+ne_zaman: Birden çok işlemin birlikte doğru çalışması gereken akışlar.
+uretici: ajan
+kurallar:
+  - Akışı müşterinin uygulamada yaptığı sırayla adim adim yaz (adimlar).
+  - Bir adımın çıktısı sonrakinin girdisiyse 'al' ile aktar.
+  - Her adıma en az bir iş kuralı kontrolü koy (yalnızca 'başarılı' yetmez).
+  - Değişken veriler (bakiye, kur, tarih) için sabit değer değil kural kontrolü yaz.
+durum: onayli

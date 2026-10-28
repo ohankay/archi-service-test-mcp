@@ -1,0 +1,41 @@
+ad: Hesap hareketleri
+aciklama: Bir hesabın tarih aralığındaki hareketleri.
+metod: AccountTransactionHistoryList
+yol: BOA.Integration.MobileBanking.Account/AccountService.svc
+tur: okuma
+oturum: true
+durum: onayli
+girdiler:
+  hesap_no:
+    alan: AccountNumber
+    tip: sayi
+    zorunlu: true
+    aciklama: Hesap numarası (verilmezse hesap listesindeki ilk hesap)
+    kaynak: {islem: Hesap listesi, al: "AccountGroups.Accounts[0].AccountNumber"}
+  hesap_ek:
+    alan: AccountSuffix
+    tip: sayi
+    varsayilan: 1
+    en_az: 1
+    aciklama: Hesap ek numarası
+  baslangic:
+    alan: BeginDate
+    tip: tarih
+    bicim: GG.AA.YYYY
+    varsayilan: bugün-7
+  bitis:
+    alan: EndDate
+    tip: tarih
+    bicim: GG.AA.YYYY
+    varsayilan: bugün
+tarih_araligi: {baslangic: baslangic, bitis: bitis, en_fazla_gun: 365}
+sabit:
+  MainResourceCode: MOBROTHRBN
+  MainResourceId: 21722
+  AccountType: Cari
+  MinAmount: 0
+  MaxAmount: 0
+  IsSTSApprovement: false
+  IsMultipleAccountRequest: false
+kontroller:
+  - AccountTransactionHistoryList var

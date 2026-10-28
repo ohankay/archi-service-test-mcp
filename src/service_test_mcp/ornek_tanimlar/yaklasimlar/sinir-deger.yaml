@@ -1,0 +1,8 @@
+yaklasim: Sınır değer analizi
+diger_adlar: [boundary value, boundary value testing, BVA, sınır değer, sinir deger]
+aciklama: Sınırın hemen içi, tam üstü ve hemen dışı denenir; hatalar en çok sınırlarda çıkar.
+ne_zaman: Sayı, tarih, uzunluk sınırı ya da tarih aralığı kuralı olan girdiler.
+uretici: sinir_deger
+beklenen_disari: hata
+sinir: 40
+durum: onayli

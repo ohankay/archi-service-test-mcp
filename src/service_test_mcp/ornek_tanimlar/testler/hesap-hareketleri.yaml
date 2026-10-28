@@ -1,0 +1,18 @@
+test: Hesap hareketleri görüntüleme
+aciklama: İlk hesabın son 30 günlük hareketleri listelenir; hareketler istenen tarih aralığında olmalı.
+etiketler: [hesap]
+durum: onayli
+adimlar:
+  - islem: Hesap listesi
+    al:
+      hesap_no: AccountGroups.Accounts[0].AccountNumber
+      hesap_ek: AccountGroups.Accounts[0].AccountSuffix
+  - islem: Hesap hareketleri
+    girdi:
+      hesap_no: "{{hesap_no}}"
+      hesap_ek: "{{hesap_ek}}"
+      baslangic: bugün-30
+    kontrol:
+      - her AccountTransactionHistoryList için TransactionDate arasında {{baslangic}} ve {{bitis}}
+      - her AccountTransactionHistoryList için Amount != 0
+    ai_yorum: Hareket açıklamaları ve tutarları anlamlı ve birbiriyle tutarlı mı?

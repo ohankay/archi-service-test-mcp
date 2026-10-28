@@ -188,6 +188,7 @@ class CustomerSpec:
 class ProfileEnvironment:
     variables: dict[str, Any] = field(default_factory=dict)
     test_customers: dict[str, CustomerSpec] = field(default_factory=dict)
+    default_customer: str | None = None
 
     @classmethod
     def parse(cls, name: str, data: Any) -> "ProfileEnvironment":
@@ -335,6 +336,12 @@ class Profile:
     catalog_path: Path | None = None
     hooks: str | None = None
     catalog: Catalog = field(default_factory=lambda: Catalog(path=None))
+    # set when the profile is compiled from definitions (tanimlar/): rules in the check language, dotted paths,
+    # and test customers given just by their number (adhoc_field = the variable that holds it)
+    success_lines: list[str] = field(default_factory=list)
+    expired_lines: list[str] = field(default_factory=list)
+    dotted_paths: bool = False
+    adhoc_field: str | None = None
 
     @classmethod
     def load(cls, path: str | Path) -> "Profile":

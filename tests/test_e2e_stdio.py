@@ -14,9 +14,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-from service_test_mcp.server import PROFILE_TOOL_NAMES, TOOL_NAMES
+from service_test_mcp.server import TEMEL_TOOL_NAMES, TOOL_NAMES
 
-from .conftest import clean_env, write_config, write_mobile_config
+from .conftest import clean_env, write_config, write_mobile_config, write_tanimlar
 
 
 async def _session(env, fn):
@@ -94,19 +94,20 @@ def test_stdio_mobile_profile(tmp_path, demo_port):
     async def scenario(s):
         res = await _call(s, "list_services")
         svc = res["services"][0]
-        assert svc["call_with"] == "call_operation" and svc["login_steps"][-1] == "OtpLoginCompleteNew"
+        assert svc["call_with"] == "call_profile_operation" and svc["login_steps"][-1] == "OtpLoginCompleteNew"
         assert "hedef_iban" in res["environments"]["test"]["variables"]
         res = await _call(s, "list_operations", service="MobilBankacilik", kind="read")
         assert "GetDashBoardMobileInformation" in {o["operation"] for o in res["operations"]}
         res = await _call(s, "describe_operation", service="MobilBankacilik", operation="ExecuteMoneyTransfer")
         assert res["kind"] == "mutating" and res["allowed_here"] is True and "Amount" in res["params"]
-        res = await _call(s, "call_operation", service="MobilBankacilik", operation="GetDashBoardMobileInformation",
+        res = await _call(s, "call_profile_operation", service="MobilBankacilik",
+                          operation="GetDashBoardMobileInformation",
                           params={"MainResourceCode": "DASHBOARD"}, extract={"bakiye": "$.Value.Accounts[0].Balance"},
                           assertions=[{"success": True}, {"path": "$.Value.Accounts", "count": 1}])
         assert res["success"] is True and res["assertions_passed"] is True
         assert res["test_customer"] == "bireysel_standart"
         assert res["body"]["Value"]["Accounts"][0]["Iban"].endswith("1326") and "TR33" not in json.dumps(res)
-        res = await _call(s, "call_operation", service="MobilBankacilik", operation="ExecuteMoneyTransfer",
+        res = await _call(s, "call_profile_operation", service="MobilBankacilik", operation="ExecuteMoneyTransfer",
                           params={"ToIban": "{{env.hedef_iban}}", "Amount": "1.00", "Description": "e2e",
                                   "TransferType": 1})
         assert res["success"] is True and res["business"] == {"success": True}
@@ -210,7 +211,7 @@ def test_standalone_agent(tmp_path, demo_port):
     assert tool_msg["role"] == "tool" and "Demo123!" not in tool_msg["content"]
 
 
-class _FakeProfileLLM(BaseHTTPRequestHandler):
+class _FakeTemelLLM(BaseHTTPRequestHandler):
     calls: list = []
 
     def log_message(self, *a):
@@ -218,15 +219,15 @@ class _FakeProfileLLM(BaseHTTPRequestHandler):
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        _FakeProfileLLM.calls.append(body)
+        _FakeTemelLLM.calls.append(body)
         last = body["messages"][-1]
         if last["role"] == "user":
             msg = {"role": "assistant", "content": None, "tool_calls": [
-                {"id": "c1", "type": "function", "function": {"name": "call_operation", "arguments": json.dumps(
-                    {"service": "MobilBankacilik", "operation": "GetProfileBasics"})}}]}
+                {"id": "c1", "type": "function", "function": {"name": "run_test", "arguments": json.dumps(
+                    {"test": "Kur bilgisi listeleme", "customer": "1000001", "environment": "demo"})}}]}
         else:
             result = json.loads(last["content"])
-            msg = {"role": "assistant", "content": f"basari={result['success']}"}
+            msg = {"role": "assistant", "content": f"sonuc={result['sonuc']}"}
         data = json.dumps({"choices": [{"message": msg}]}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -235,25 +236,25 @@ class _FakeProfileLLM(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 
-def test_standalone_agent_profile_toolset(tmp_path, demo_port):
+def test_standalone_agent_default_toolset(tmp_path, demo_port):
+    import argparse
+
     from service_test_mcp import demo_mobile
-    from service_test_mcp.agent.cli import build_config, main
+    from service_test_mcp.agent.cli import build_config
     from service_test_mcp.agent.core import run_prompts
 
     demo_mobile.reset()
-    llm = ThreadingHTTPServer(("127.0.0.1", 0), _FakeProfileLLM)
+    llm = ThreadingHTTPServer(("127.0.0.1", 0), _FakeTemelLLM)
     threading.Thread(target=llm.serve_forever, daemon=True).start()
-    cfg_file = write_mobile_config(tmp_path, demo_port)
-    import argparse
-
+    tanimlar = write_tanimlar(tmp_path, demo_port)
     args = argparse.Namespace(base_url=f"http://127.0.0.1:{llm.server_port}/v1", model="fake", api_key_env=None,
-                              system_prompt=None, temperature=0.0, mcp_url=None, max_steps=5, toolset="profile")
+                              system_prompt=None, temperature=0.0, mcp_url=None, max_steps=5, toolset=None)
     cfg = build_config(args)
-    cfg.server_env = clean_env(STM_CONFIG=str(cfg_file), STM_HOME=str(tmp_path / "home"))
-    answers = asyncio.run(run_prompts(cfg, ["profil bilgilerini kontrol et"]))
+    assert cfg.server_env["STM_TOOLSET"] == "temel"
+    cfg.server_env = clean_env(STM_TOOLSET="temel", STM_TANIMLAR=str(tanimlar), STM_HOME=str(tmp_path / "home"))
+    answers = asyncio.run(run_prompts(cfg, ["kur listesini 1000001 ile demo ortamında test et"]))
     llm.shutdown()
-    assert answers == ["basari=True"]
-    first = _FakeProfileLLM.calls[0]
-    assert {t["function"]["name"] for t in first["tools"]} == set(PROFILE_TOOL_NAMES)
-    assert "call_operation" in first["messages"][0]["content"]       # shared agent instructions
-    assert main is not None
+    assert answers == ["sonuc=geçti"]
+    first = _FakeTemelLLM.calls[0]
+    assert {t["function"]["name"] for t in first["tools"]} == set(TEMEL_TOOL_NAMES)
+    assert "run_test" in first["messages"][0]["content"]       # shared agent instructions

@@ -12,7 +12,7 @@ import weakref
 from typing import Any
 
 from .audit import AuditLog
-from .config import ConfigError, EnvironmentConfig, ServiceConfig, Settings, home_dir, load_settings
+from .config import PRODUCTION_NAMES, ConfigError, EnvironmentConfig, ServiceConfig, Settings, home_dir, load_settings
 from .masking import Masker
 from .normalize import dumps, json_ready
 from .profile.leases import FileLeaseStore, owner_id
@@ -20,6 +20,9 @@ from .profile.model import Profile
 from .profile.runtime import ProfileRuntime
 from .rest import RestAdapter
 from .soap import SoapAdapter
+from .tanim import gizli
+from .tanim.depo import Depo
+from .tanim.derle import sistem_derle
 
 _ENGINES: "weakref.WeakSet[Engine]" = weakref.WeakSet()
 
@@ -72,7 +75,72 @@ class Engine:
             except ConfigError as exc:
                 settings.broken[svc.name] = f"profile: {exc}"
                 del settings.services[svc.name]
+        self._gizli = gizli.oku()
+        for values in self._gizli.values():
+            for value in values.values():
+                self.masker.add_secret(str(value))
+        self._load_definitions()
         _ENGINES.add(self)
+
+    def _load_definitions(self) -> None:
+        """tanimlar/: every 'sistem' becomes a profile service; problems are reported, never fatal."""
+        settings = self.settings
+        self.depo = Depo.yukle()
+        self._tanim_servisleri: set[str] = set()
+        for kayit in self.depo.hepsi("sistem"):
+            if str(kayit.yol) in self.depo.yukleme_hatalari:
+                settings.broken[kayit.ad] = "tanım: " + "; ".join(self.depo.yukleme_hatalari[str(kayit.yol)])
+                continue
+            if kayit.ad in settings.services:
+                settings.broken[kayit.ad] = "tanım: services.yaml'da aynı adlı bir servis var"
+                continue
+            try:
+                service, envs, profile = sistem_derle(self.depo, kayit)
+            except Exception as exc:  # noqa: BLE001
+                settings.broken[kayit.ad] = f"tanım: {exc}"
+                continue
+            for name, env in envs.items():
+                if str(name).strip().lower() in PRODUCTION_NAMES:
+                    continue
+                current = settings.environments.get(name)
+                if current is None:
+                    settings.environments[name] = env
+                elif not env.allow_mutating:
+                    current.allow_mutating = False
+            service.environments = [n for n in envs if n in settings.environments]
+            settings.services[service.name] = service
+            self._tanim_servisleri.add(service.name)
+            old = self.profiles.get(service.name)
+            if old is not None:          # reload: keep the live sessions and leases, swap the definitions
+                old.profile = profile
+            else:
+                self.profiles[service.name] = ProfileRuntime(self, service.name, profile, self.leases, self.owner,
+                                                             settings.locks.wait_s)
+            if not settings.default_environment and service.environments:
+                settings.default_environment = service.environments[0]
+
+    def reload_definitions(self) -> None:
+        """After a definition was saved: re-read tanimlar/ without dropping sessions of systems that remain."""
+        with self._lock:
+            previous = set(getattr(self, "_tanim_servisleri", set()))
+            for name in previous:
+                self.settings.services.pop(name, None)
+            for name in [n for n, why in self.settings.broken.items() if why.startswith("tanım:")]:
+                del self.settings.broken[name]
+            self._load_definitions()
+            for name in previous - self._tanim_servisleri:
+                runtime = self.profiles.pop(name, None)
+                if runtime is not None:
+                    runtime.close()
+
+    def reload_secrets(self) -> None:
+        self._gizli = gizli.oku()
+        for values in self._gizli.values():
+            for value in values.values():
+                self.masker.add_secret(str(value))
+
+    def secrets(self, environment: str) -> dict[str, Any]:
+        return gizli.ortam_icin(getattr(self, "_gizli", {}), environment)
 
     def reload(self) -> None:
         with self._lock:
