@@ -79,7 +79,7 @@ Servis katmanı testlerini bir AI ajanının yapabildiği bir platform. Teknik b
    - bayraklar ve ekran kodları sabit alana gider.
 5. `apply=true` taslakları kaydeder. `save_secrets=true`, sistem tanımındaki `gizli_degerler` listesine göre şifreleri ve OTP'yi yerel `gizli.yaml`'a yazar.
 
-**Doğrulama:** Bu tanımlar gönderilen gerçek logla karşılaştırıldı. Motorun ürettiği istekler (4 login adımı ve 4 işlem; toplam 206 alan, gizli değerler dahil) uygulamanın gönderdikleriyle birebir aynı. Canlı servise henüz bağlanılmadı.
+**Doğrulama:** Bu tanımlar (prep ortamı) gönderilen gerçek logla karşılaştırıldı. Motorun ürettiği istekler (4 login adımı ve 4 işlem; toplam 206 alan, gizli değerler dahil) uygulamanın gönderdikleriyle birebir aynı. Canlı servise henüz bağlanılmadı.
 
 ## Deterministik ve AI dengesi
 

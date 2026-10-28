@@ -28,7 +28,7 @@ Kurulumla birlikte (`service-test-mcp --init`, kurulum betiği bunu kendisi çal
 - **Testler:** Giriş, Hesap listeleme, Hesap hareketleri görüntüleme, Kur bilgisi listeleme.
 - **Yaklaşımlar:** Sınır değer analizi, Eşdeğerlik sınıfları, Negatif testler, Pairwise, Kullanıcı yolculuğu.
 
-Repodaki tanımlar yalnızca yerel **demo** ortamını içerir. Gerçek ortam adresleri ve cihaz bilgileri kuruma özel bir pakette (`kurum-tanimlari`) gelir; zip klasörüne konursa kurulum onu da yükler. **Şifreler ve OTP hiçbir tanım dosyasında yer almaz.** Bunlar ya ortam değişkeninden (`STM_SECRET_...`) okunur ya da yalnızca sizin bilgisayarınızdaki `gizli.yaml` dosyasından. Bu dosyayı `import_log(save_secrets=true)` kendi logunuzdan doldurur.
+Sistem tanımında iki ortam var: yerel **demo** ve gerçek **prep** (`mobileprep.kuveytturk.com.tr`, logdaki cihaz ve uygulama bilgileriyle). **Şifreler ve OTP tanım dosyalarında yer almaz.** Bunlar ya ortam değişkeninden (`STM_SECRET_...`) okunur ya da yalnızca sizin bilgisayarınızdaki `gizli.yaml` dosyasından. Bu dosyayı `import_log(save_secrets=true)` kendi logunuzdan doldurur. Ek olarak kuruma özel bir tanım klasörü kullanılacaksa, zip klasörüne `kurum-tanimlari` adıyla konduğunda kurulum onu da yükler.
 
 ## Ajanın araçları (7)
 
@@ -112,7 +112,7 @@ sabit: { MainResourceCode: MOBROTHRBN, AccountType: Cari }
 
 ## Kurulum ve VS Code
 
-1. Python'unuza uygun zip'i (`release/archi-service-test-mcp-windows-x64.zip` ya da `-x86.zip`) bir klasöre açın. Kuruma özel `kurum-tanimlari` klasörünüz varsa onu da bu klasöre koyun.
+1. Python'unuza uygun zip'i (`release/archi-service-test-mcp-windows-x64.zip` ya da `-x86.zip`) bir klasöre açın.
 2. Klasörü VS Code'da açın ve Copilot Chat → **Agent** moduna şunu yazın: `KURULUM_REHBERI.md dosyasını oku ve "Ajan için kurulum adımları" bölümünü sırayla uygula.`
 
    Ya da elle `install.cmd` çalıştırın. Kurulum yeri `%USERPROFILE%\.service-test-mcp` olur; tanımlar oraya kopyalanır.

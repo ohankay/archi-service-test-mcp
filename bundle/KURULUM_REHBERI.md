@@ -60,7 +60,7 @@ Kullanıcıya şu soruları tek mesajda sor (şifre SORMA):
 4. Veri değiştiren (mutating) operasyonlar: SOAP'ta operasyon adları (`TransferYap`, `*Sil`), REST'te `METHOD /yol` kalıpları.
 5. Kurumsal proxy veya kendi CA sertifikası gerekiyor mu?
 
-6. Mobil bankacılık WCF servisleri test edilecek mi? Bunun için ek bir şey yazmana gerek yok: kurulum `tanimlar` klasörünü hazır tanımlarla (sistem, işlemler, yaklaşımlar, testler) doldurdu. Zip klasöründe `kurum-tanimlari` klasörü varsa gerçek ortam (ör. prep) tanımları da yüklendi. Yoksa kullanıcıya kuruma özel tanım paketini sormalısın; paketi aldığında şunu çalıştır: `& "$env:USERPROFILE\.service-test-mcp\Scripts\service-test-mcp.exe" --init --kaynak <paket klasörü> --force`.
+6. Mobil bankacılık WCF servisleri test edilecek mi? Bunun için ek bir şey yazmana gerek yok: kurulum `tanimlar` klasörünü hazır tanımlarla (demo ve prep ortamları, işlemler, yaklaşımlar, testler) doldurdu. Zip klasöründe ek olarak `kurum-tanimlari` klasörü varsa o da yüklendi.
 
 Sonra `templates/services.yaml` dosyasını `%USERPROFILE%\.service-test-mcp\services.yaml` olarak kopyala ve kullanıcının cevaplarıyla doldur. Bu adım yalnızca SOAP/REST servisleri (1-5. sorular) için gerekir; mobil servisler tanım dosyalarından gelir. Şifreli her servis için `password_env: STM_PW_<SERVIS>` / `token_env: STM_TOKEN_<SERVIS>` gibi bir değişken adı ver.
 

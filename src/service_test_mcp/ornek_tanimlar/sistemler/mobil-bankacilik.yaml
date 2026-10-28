@@ -1,6 +1,7 @@
 # Mobil bankacilik WCF servisleri (webHttpBinding, JSON). Bu dosyayi teknik bir kisi bir kez yazar;
-# test yazan kisi gormez. Gercek ortamlarin adresleri ve gizli degerleri bu ornekte YOK: gercek "prep" ortami
-# kurum ici pakette gelir, gizli degerler yerel gizli.yaml'da durur (import_log save_secrets=true ile dolar).
+# test yazan kisi gormez. Ortamlar: yerel demo ve gercek prep. Gizli degerler (uygulama sifreleri, ortak test
+# sifresi, OTP) tanim dosyalarinda tutulmaz: STM_SECRET_* ortam degiskenleri veya yerel gizli.yaml
+# (import_log save_secrets=true kendi logunuzdan doldurur).
 ad: Mobil Bankacılık
 aciklama: Mobil uygulamanın kullandığı WCF servisleri. Her istek POST <adres>/<yol>/<metod>.
 durum: onayli
@@ -18,17 +19,19 @@ ortamlar:
       otp: "123456"
       gsm: "905000000000"
       kullanici_id: demo-kullanici
-  # prep:
-  #   adres: https://<prep-adresi>/BOA.Integration.MobileBranch
-  #   degiskenler:
-  #     uygulama_kullanici: <uygulama kullanicisi>
-  #     uygulama_sifresi: "{{gizli.uygulama_sifresi}}"
-  #     musteri_kullanici: <musteri sonrasi kullanici>
-  #     uygulama_sifresi_2: "{{gizli.uygulama_sifresi_2}}"
-  #     musteri_sifresi: "{{gizli.musteri_sifresi}}"
-  #     otp: "{{gizli.otp}}"
-  #     gsm: "<gsm>"
-  #     kullanici_id: "<UserId>"
+  prep:
+    adres: https://mobileprep.kuveytturk.com.tr/BOA.Integration.MobileBranch
+    aciklama: Preprod (mobil uygulamanin prep ortami)
+    degiskenler:
+      uygulama_kullanici: MobilePublicTest
+      uygulama_sifresi: "{{gizli.uygulama_sifresi}}"
+      musteri_kullanici: MobilePrivateTest
+      uygulama_sifresi_2: "{{gizli.uygulama_sifresi_2}}"
+      musteri_sifresi: "{{gizli.musteri_sifresi}}"
+      otp: "{{gizli.otp}}"
+      gsm: "902124440123"
+      kullanici_id: "ot/BmF0Cwx/JITfzMUS30w=="
+      cihaz_id: F83B1E06-74A6-4C71-9DCB-407A8C556E5B
 degiskenler:                                   # tum ortamlarda ortak
   cihaz_id: 7D1E7C1E-0000-4000-8000-00000000A001
   uygulama_adi: IOS MobileBranch
