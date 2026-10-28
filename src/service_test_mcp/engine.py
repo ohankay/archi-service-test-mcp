@@ -80,6 +80,7 @@ class Engine:
         for values in self._gizli.values():
             for key, value in values.items():
                 self.masker.add_secret(str(value), str(key), credential=True)
+        self._tanim_ortamlari: set[str] = set()   # environments that come from tanimlar/ (not services.yaml)
         self._load_definitions()
         _ENGINES.add(self)
 
@@ -106,8 +107,18 @@ class Engine:
                 current = settings.environments.get(name)
                 if current is None:
                     settings.environments[name] = env
-                elif not env.allow_mutating:
-                    current.allow_mutating = False
+                    self._tanim_ortamlari.add(name)
+                else:
+                    if name in self._tanim_ortamlari:
+                        # reload: connection settings from the definition take effect now, not after a restart
+                        baglanti = ("timeout_s", "proxy", "verify_tls")
+                        if any(getattr(current, k) != getattr(env, k) for k in baglanti):
+                            for k in baglanti:
+                                setattr(current, k, getattr(env, k))
+                            self._drop_connections(name)
+                        current.description = env.description or current.description
+                    if not env.allow_mutating:
+                        current.allow_mutating = False
             service.environments = [n for n in envs if n in settings.environments]
             settings.services[service.name] = service
             self._tanim_servisleri.add(service.name)
@@ -133,6 +144,15 @@ class Engine:
                 runtime = self.profiles.pop(name, None)
                 if runtime is not None:
                     runtime.close()
+
+    def _drop_connections(self, environment: str) -> None:
+        """HTTP sessions keep proxy / TLS / timeout settings: rebuild them on next use (login state stays)."""
+        rest = getattr(self, "rest", None)
+        if rest is None:
+            return
+        with rest._lock:
+            for key in [k for k in rest._sessions if k[1] == environment]:
+                rest._sessions.pop(key)[0].close()
 
     def reload_secrets(self) -> None:
         self._gizli = gizli.oku()

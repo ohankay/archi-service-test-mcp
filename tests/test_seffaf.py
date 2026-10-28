@@ -198,3 +198,34 @@ def test_proxy_addresses_from_windows_strings():
     assert proxy_adresleri("PROXY a.b:81; DIRECT") == ["http://a.b:81"]
     assert proxy_adresleri("http=h1:80;https=h2:8443") == ["http://h1:80", "http://h2:8443"]
     assert proxy_adresleri("DIRECT") == []
+
+
+def test_saved_connection_settings_apply_without_restart(tanimlar, demo_port, monkeypatch):
+    """'proxy: yok' saved by the agent must be used by the next call, not after a restart."""
+    proxy = _silent_server()
+    _point_prep_to(tanimlar, f"http://127.0.0.1:{demo_port}/demo", "zaman_asimi_sn: 1\n    ")
+    for key in ("NO_PROXY", "no_proxy", "HTTPS_PROXY", "https_proxy"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("HTTP_PROXY", f"http://127.0.0.1:{proxy.getsockname()[1]}")
+    from service_test_mcp import demo_mobile as dm
+
+    for name, value in (("UYGULAMA_SIFRESI", dm.APP_PASSWORD), ("UYGULAMA_SIFRESI_2", dm.APP_PASSWORD_2),
+                        ("MUSTERI_SIFRESI", dm.CUSTOMER_PASSWORD), ("OTP", dm.OTP)):
+        monkeypatch.setenv(f"STM_SECRET_{name}", value)
+    e = Engine()
+    server.set_engine(e)
+    try:
+        before = _run(server.call_operation("Kur listesi", customer="1000001", environment="prep"))
+        assert before["iz"][0]["istek"]["proxy"].startswith("http://127.0.0.1:"), before
+        kayit = e.depo.gerekli("sistem", "Mobil Bankacılık")
+        text = kayit.yol.read_text("utf-8").replace("zaman_asimi_sn: 1\n", "zaman_asimi_sn: 1\n    proxy: yok\n")
+        r = _run(server.save_definition("sistem", text, version=kayit.surum))
+        assert r["success"], r
+        after = _run(server.call_operation("Kur listesi", customer="1000001", environment="prep",
+                                           checks=["başarılı"]))
+        assert e.settings.environments["prep"].proxy == "none"
+        assert all("HTTP 200" in line for line in after["akis"]), after["akis"]
+    finally:
+        server.set_engine(None)
+        e.close()
+        proxy.close()
