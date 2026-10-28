@@ -119,11 +119,42 @@ def siniflandir(exc: BaseException, url: str, timeout: Any, proxy: str | None) -
 
 
 # -- views ------------------------------------------------------------------------------------------------------------
+def _boy(value: Any) -> int:
+    return len(value) if isinstance(value, str) else len(json.dumps(value, ensure_ascii=False, default=str))
+
+
 def _kisalt(value: Any, limit: int) -> Any:
-    text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
-    if len(text) <= limit:
+    """Shorten but keep the shape: objects stay objects (no escaped JSON strings), long lists keep their first
+    items, long strings their start. The full value is in the trace file."""
+    if _boy(value) <= limit:
         return value
-    return text[:limit] + f"... (+{len(text) - limit} karakter; tamamı iz dosyasında)"
+    if isinstance(value, str):
+        return value[:limit] + f"... (+{len(value) - limit} karakter; tamamı iz dosyasında)"
+    for items, text in ((5, 200), (2, 120), (1, 60), (1, 30)):
+        short = _sekil(value, items, text, 0)
+        if _boy(short) <= limit:
+            return short
+    return short
+
+
+def _sekil(value: Any, items: int, text: int, depth: int) -> Any:
+    if isinstance(value, str):
+        return value if len(value) <= text else value[:text] + "..."
+    if isinstance(value, list):
+        out = [_sekil(v, items, text, depth + 1) for v in value[:items]]
+        if len(value) > items:
+            out.append(f"... (+{len(value) - items} öğe; tamamı iz dosyasında)")
+        return out
+    if isinstance(value, dict):
+        if depth >= 6:
+            return f"{{... {len(value)} alan}}"
+        keys = list(value)
+        keep = keys if depth or len(keys) <= 40 else keys[:40]
+        out = {k: _sekil(value[k], items, text, depth + 1) for k in keep}
+        if len(keep) < len(keys):
+            out["..."] = f"+{len(keys) - len(keep)} alan; tamamı iz dosyasında"
+        return out
+    return value
 
 
 def satir(k: dict[str, Any]) -> str:

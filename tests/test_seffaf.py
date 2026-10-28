@@ -36,6 +36,7 @@ def test_result_carries_the_whole_flow(seffaf, monkeypatch):
     assert list(r)[:2] == ["success", "sonuc"] and "/.../AccountService.svc/AccountListByGroup" in r["akis"][4]
     _run(server.end_sessions())
     monkeypatch.setenv("STM_IZ", "hepsi")
+    monkeypatch.setattr(server, "SONUC_LIMIT", 100_000)   # STM_SONUC_SINIR: everything in the result
     r = _run(server.run_test("Hesap listeleme", customer="1000001", environment="demo"))
     assert r["sonuc"] == "geçti"
     assert [line.split("]")[0].split("[")[1] for line in r["akis"]] == \
@@ -256,3 +257,22 @@ def test_failed_login_step_is_the_first_thing_in_the_result(tanimlar, demo_port,
     assert len(r["iz"]) == 1 and "basliklar" not in r["iz"][0]["istek"]
     assert r["iz"][0]["istek"]["govde"]["ExtUPassword"] == "«gizli: uygulama_sifresi»"
     assert len(text) < 8000
+
+
+def test_long_bodies_keep_their_shape():
+    body = {"AccountGroups": [{"Accounts": [{"AccountNumber": 96014828, "AccountName": "Cari Hesap" * 30,
+                                             "Balance": str(i)} for i in range(50)]}], "Success": True}
+    short = iz._kisalt(body, 1200)
+    assert isinstance(short, dict) and short["Success"] is True
+    accounts = short["AccountGroups"][0]["Accounts"]
+    assert accounts[0]["AccountNumber"] == 96014828 and "öğe" in accounts[-1]
+    assert len(json.dumps(short, ensure_ascii=False)) <= 1200
+
+
+def test_everything_mode_still_fits(seffaf, monkeypatch):
+    monkeypatch.setenv("STM_IZ", "hepsi")
+    monkeypatch.setattr(server, "SONUC_LIMIT", 3000)
+    text = asyncio.run(server.run_test("Hesap listeleme", customer="1000001", environment="demo"))
+    r = json.loads(text)
+    assert r["sonuc"] == "geçti" and len(r["akis"]) == 5 and Path(r["iz_dosyasi"]).exists()
+    assert len(text) < 3500

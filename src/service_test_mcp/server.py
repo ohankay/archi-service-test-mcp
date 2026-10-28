@@ -171,9 +171,15 @@ def _with_trace(result: dict[str, Any], kayitlar: list[dict[str, Any]], title: s
     path = iz.dosyaya_yaz(e.view(kayitlar, limit=10_000_000), title)
     if path:
         result["iz_dosyasi"] = path
-    if not full and len(json.dumps(json_ready(result), ensure_ascii=False, default=str)) > SONUC_LIMIT:
+    # always within the limit (STM_IZ=hepsi too): a result the agent cannot read is not transparent
+    def size() -> int:
+        return len(json.dumps(json_ready(result), ensure_ascii=False, default=str))
+    if size() > SONUC_LIMIT and full and shown:
+        result["iz"] = e.view(iz.ozet([k for k in kayitlar if iz.sorunlu(k)] or shown[-1:]), limit=IZ_LIMIT)
+    if size() > SONUC_LIMIT:
         result.pop("iz", None)
         result["iz_notu"] = "Sonuç uzun olduğu için istek/yanıt ayrıntısı yalnızca iz_dosyasi'nda."
+    if size() > SONUC_LIMIT:
         result = e.view(result, limit=SONUC_LIMIT)
     return result
 

@@ -52,7 +52,7 @@ Her sonuç `success`, `sonuc` ve bir sorun varsa `sorun` ile başlar: hangi adı
 | Alan | İçerik |
 |---|---|
 | `akis` | Her HTTP alışverişi için bir satır: hangi adım (`giriş 2/4`, `test`, `çıkış`), metod, tam URL, HTTP durumu ya da hatanın aşaması, süre, iş sonucu, yanıttan alınan oturum değerleri |
-| `iz` | Gönderilen isteğin tamamı (URL, oturumun eklediği başlıklar dahil tüm başlıklar, gövde, zaman aşımı, proxy, TLS ayarı) ve gelen yanıtın tamamı (durum, başlıklar, gövde, yönlendirmeler). Ajanlar uzun araç sonuçlarını kesip dosyaya aktardığı için burada yalnızca sorunlu alışverişler (hata, HTTP ≥ 400, iş sonucu başarısız) başlıksız ve kısaltılmış gövdelerle gösterilir; sonucun tamamı 8000 karakteri (`STM_SONUC_SINIR`) geçmez. `STM_IZ=hepsi` hepsini tam gösterir. |
+| `iz` | Gönderilen isteğin tamamı (URL, oturumun eklediği başlıklar dahil tüm başlıklar, gövde, zaman aşımı, proxy, TLS ayarı) ve gelen yanıtın tamamı (durum, başlıklar, gövde, yönlendirmeler). Ajanlar uzun araç sonuçlarını kesip dosyaya aktardığı için burada yalnızca sorunlu alışverişler (hata, HTTP ≥ 400, iş sonucu başarısız) başlıksız ve kısaltılmış gövdelerle gösterilir; sonucun tamamı 8000 karakteri (`STM_SONUC_SINIR`) geçmez. `STM_IZ=hepsi` hepsini tam gösterir (sınır yine geçerli; gerekirse `STM_SONUC_SINIR` artırılır). Uzun gövdeler biçimi korunarak kısaltılır: listelerin ilk öğeleri ve alanlar kalır. |
 | `iz_dosyasi` | Kısaltılmamış izin JSON dosyası: `%USERPROFILE%\.service-test-mcp\izler\` (son 200 dosya tutulur; `STM_IZ_DIR`) |
 
 Örnek `akis`:
