@@ -192,7 +192,6 @@ def kontrol_et(engine: Any, service: str, environment: str | None, tcp_sn: float
         yollar.append(_yol(ad, base, p, verify, tcp_sn, http_sn))
     out["yollar"] = yollar
     current = yollar[0]
-    out["adimlar"] = current["adimlar"]
     working = [y for y in yollar[1:] if y["calisiyor"]]
     if current["calisiyor"]:
         out["sonuc"] = "erişilebilir"
@@ -209,4 +208,37 @@ def kontrol_et(engine: Any, service: str, environment: str | None, tcp_sn: float
                             "açılıyorsa tarayıcının proxy'sini (ayarlar / PAC) karşılaştırın; açılmıyorsa VPN, "
                             "güvenlik duvarı izni ya da sunucu tarafını kontrol edin.")
     out["success"] = current["calisiyor"]
+    return out
+
+
+def _kes(text: Any, n: int) -> Any:
+    return text if not isinstance(text, str) or len(text) <= n else text[:n] + "..."
+
+
+def ozet(r: dict[str, Any]) -> dict[str, Any]:
+    """The check in a few hundred characters per way - what an agent can show; details go to the file."""
+    yollar = []
+    for y in r.get("yollar") or []:
+        adimlar = []
+        for a in y["adimlar"]:
+            k = {"adim": a["adim"], "durum": a["durum"], "sure_ms": a["sure_ms"], "detay": _kes(a["detay"], 300)}
+            if a["durum"] == "hata":
+                k["olasi_nedenler"] = [_kes(n, 200) for n in a.get("olasi_nedenler") or []][:3]
+                if a.get("zincir"):
+                    k["zincir_sonu"] = _kes(a["zincir"][-1], 200)
+            adimlar.append(k)
+        yollar.append({"yol": y["yol"], "proxy": y["proxy"], "calisiyor": y["calisiyor"], "adimlar": adimlar})
+    out: dict[str, Any] = {k: r[k] for k in ("servis", "ortam", "adres", "sonuc", "oneri", "success", "ayarlar")
+                           if k in r}
+    out["yollar"] = yollar
+    win = r.get("windows_proxy")
+    if win:
+        w = {k: _kes(win[k], 300) for k in ("sabit_proxy_acik", "sabit_proxy", "proxy_disi", "pac_adresi",
+                                             "pac_okunamadi", "hata") if k in win}
+        if win.get("pac_proxyleri") is not None:
+            w["pac_proxyleri"] = win["pac_proxyleri"][:10]
+        karar = win.get("bu_adres_icin_windows_karari")
+        if karar:
+            w["bu_adres_icin_windows_karari"] = karar.get("hata") or karar.get("ham")
+        out["windows_proxy"] = w
     return out

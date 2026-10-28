@@ -65,7 +65,7 @@ _engine: Engine | None = None
 _engine_lock = threading.Lock()
 _last: dict[str, Any] = {}
 _vars: dict[str, Any] = {}   # session variables saved by 'extract' on soap_call / rest_call
-IZ_LIMIT = int(os.environ.get("STM_IZ_SINIR", "60000"))  # characters of trace returned with a result
+IZ_LIMIT = int(os.environ.get("STM_IZ_SINIR", "12000"))  # characters of trace returned with a result
 _EXPECTED = (ConfigError, ScenarioError, TemplateError, ValueError, FileNotFoundError, PermissionError)
 READ = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
 CALL = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=True)
@@ -151,7 +151,15 @@ def _with_trace(result: dict[str, Any], kayitlar: list[dict[str, Any]], title: s
         return result
     e = engine()
     result["akis"] = [iz.satir(k) for k in kayitlar]
-    result["iz"] = e.view(iz.kisa(kayitlar), limit=IZ_LIMIT)
+    # agents cut long tool results: details only for the exchanges that went wrong (all with STM_IZ=hepsi);
+    # the complete trace is always in the file
+    shown = kayitlar if os.environ.get("STM_IZ", "").lower() in ("hepsi", "all") else \
+        [k for k in kayitlar if iz.sorunlu(k)]
+    if shown:
+        result["iz"] = e.view(iz.kisa(shown), limit=IZ_LIMIT)
+    if len(shown) < len(kayitlar):
+        result["iz_notu"] = (f"{len(kayitlar) - len(shown)} sorunsuz alışverişin istek/yanıt ayrıntısı iz_dosyasi'nda "
+                             "(burada yalnızca akis satırı var)")
     path = iz.dosyaya_yaz(e.view(kayitlar, limit=10_000_000), title)
     if path:
         result["iz_dosyasi"] = path
@@ -376,7 +384,11 @@ async def check_connection(system: str | None = None, environment: str | None = 
         e = engine()
         names = [system] if system else [n for n, s in e.settings.services.items() if s.protocol == "rest"]
         results = [baglanti.kontrol_et(e, n, environment) for n in names]
-        return e.view({"success": all(r["success"] for r in results), "sistemler": results})
+        full = e.view({"sistemler": results}, limit=10_000_000)
+        path = iz.dosyaya_yaz(full, "check_connection")
+        # short answer for the agent (long tool results get cut); everything is in the file
+        return e.view({"success": all(r["success"] for r in results),
+                       "sistemler": [baglanti.ozet(r) for r in results], "ayrinti_dosyasi": path})
     return await _call(run)
 
 

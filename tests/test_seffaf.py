@@ -30,7 +30,11 @@ def _run(coro) -> dict:
     return json.loads(asyncio.run(coro))
 
 
-def test_result_carries_the_whole_flow(seffaf):
+def test_result_carries_the_whole_flow(seffaf, monkeypatch):
+    r = _run(server.run_test("Hesap listeleme", customer="1000001", environment="demo"))
+    assert "iz" not in r and "5 sorunsuz" in r["iz_notu"] and len(r["akis"]) == 5   # short by default
+    _run(server.end_sessions())
+    monkeypatch.setenv("STM_IZ", "hepsi")
     r = _run(server.run_test("Hesap listeleme", customer="1000001", environment="demo"))
     assert r["sonuc"] == "geçti"
     assert [line.split("]")[0].split("[")[1] for line in r["akis"]] == \
@@ -117,15 +121,16 @@ def test_tls_handshake_timeout_is_not_called_a_slow_server(tanimlar, monkeypatch
     assert "TLS el sıkışması 1.0 sn içinde tamamlanmadı; istek hiç gönderilmedi" in hata["asama"]
     assert any("PAC" in n for n in hata["olasi_nedenler"])
     s = c["sistemler"][0]
-    assert [a["durum"] for a in s["adimlar"][:3]] == ["tamam", "tamam", "hata"]
-    assert "TLS" in s["sonuc"] and any("proxy" in n for n in s["adimlar"][2]["olasi_nedenler"])
+    assert [a["durum"] for a in s["yollar"][0]["adimlar"][:3]] == ["tamam", "tamam", "hata"]
+    assert "TLS" in s["sonuc"] and any("proxy" in n for n in s["yollar"][0]["adimlar"][2]["olasi_nedenler"])
 
 
 def test_check_connection_walks_the_steps(seffaf, tanimlar):
     r = _run(server.check_connection(environment="demo"))
     s = r["sistemler"][0]
     assert r["success"] and s["sonuc"] == "erişilebilir"
-    assert [a["adim"] for a in s["adimlar"]] == ["DNS", "TCP bağlantısı", "HTTP isteği"]
+    assert [a["adim"] for a in s["yollar"][0]["adimlar"]] == ["DNS", "TCP bağlantısı", "HTTP isteği"]
+    assert len(json.dumps(r, ensure_ascii=False)) < 4000 and Path(r["ayrinti_dosyasi"]).exists()
     assert s["ayarlar"]["zaman_asimi_sn"] == 30.0
 
 
@@ -144,7 +149,7 @@ def test_check_connection_refused(tanimlar, monkeypatch):
         e.close()
     s = r["sistemler"][0]
     assert not r["success"] and "TCP bağlantısı" in s["sonuc"]
-    tcp = s["adimlar"][1]
+    tcp = s["yollar"][0]["adimlar"][1]
     assert tcp["durum"] == "hata" and tcp["olasi_nedenler"]
 
 

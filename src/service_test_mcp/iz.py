@@ -90,7 +90,7 @@ def siniflandir(exc: BaseException, url: str, timeout: Any, proxy: str | None) -
                                   " Tarayıcı Windows proxy / PAC (otomatik yapılandırma) ile çıkıyor olabilir; Python "
                                   "PAC dosyasını okumaz. check_connection Windows proxy ayarını gösterir; bulunan "
                                   "proxy'yi sistem tanımında ortama 'proxy:' olarak yazın",
-                                  "Güvenlik duvarı bu sunucuya TLS trafiğini düşürüyor (VPN kapalı / kurum ağı dışında)",
+                                  "Güvenlik duvarı bu sunucuya TLS trafiğini düşürüyor (VPN kapalı / kurum ağı dışı)",
                                   "Sunucu (veya önündeki yük dengeleyici) bu istemciyle el sıkışmayı tamamlamıyor"])
     elif isinstance(exc, requests.exceptions.ReadTimeout) or "ReadTimeout" in text or "Read timed out" in text:
         out["asama"] = f"bağlantı kuruldu, istek gitti; sunucu {timeout} sn içinde yanıt vermedi"
@@ -145,8 +145,18 @@ def satir(k: dict[str, Any]) -> str:
     return text
 
 
+def sorunlu(k: dict[str, Any]) -> bool:
+    """An exchange worth showing in full: an error, an HTTP error status or a failed business result."""
+    if k.get("hata"):
+        return True
+    durum = (k.get("yanit") or {}).get("durum")
+    if isinstance(durum, int) and durum >= 400:
+        return True
+    return (k.get("is_sonucu") or {}).get("success") is False
+
+
 def kisa(kayitlar: list[dict[str, Any]], limit: int | None = None) -> list[dict[str, Any]]:
-    limit = limit or int(os.environ.get("STM_IZ_GOVDE", "4000"))
+    limit = limit or int(os.environ.get("STM_IZ_GOVDE", "2000"))
     out = []
     for k in kayitlar:
         k = dict(k)
@@ -158,7 +168,7 @@ def kisa(kayitlar: list[dict[str, Any]], limit: int | None = None) -> list[dict[
     return out
 
 
-def dosyaya_yaz(kayitlar: list[dict[str, Any]], baslik: str) -> str | None:
+def dosyaya_yaz(kayitlar: Any, baslik: str) -> str | None:
     try:
         folder = Path(os.environ.get("STM_IZ_DIR") or home_dir() / "izler")
         folder.mkdir(parents=True, exist_ok=True)
