@@ -119,6 +119,7 @@ Kurulum burada biter.
 | Belirti | Neden / Çözüm |
 |---|---|
 | Ajan yalnızca "zaman aşımı" / "hata" diyor | Ajandan sonucun `akis` satırlarını, hatanın `asama`, `zincir` ve `olasi_nedenler` alanlarını göstermesini isteyin; tam iz `iz_dosyasi` yolundaki JSON dosyasındadır (`%USERPROFILE%\.service-test-mcp\izler\`). Sonra **"check_connection ile prep bağlantısını kontrol et"** deyin. |
+| `TLS el sıkışması ... tamamlanmadı; istek hiç gönderilmedi` (`_ssl.c ... handshake operation timed out`) | Sunucuya TCP ile ulaşıldı ama şifreli bağlantı kurulamadı. Çoğunlukla kurum ağı proxy istiyor: tarayıcı Windows proxy / PAC ile çıkar, Python PAC dosyasını okumaz. `check_connection` sonucundaki `windows_proxy` (`sabit_proxy`, `pac_adresi`, `pac_proxyleri`) ve `oneri` alanına bakın; bulunan proxy'yi sistem tanımında ortama `proxy: http://<adres>:<port>` olarak yazın. Proxy yoksa VPN / güvenlik duvarı. |
 | `sunucu N sn içinde yanıt vermedi` (ReadTimeout) | Bağlantı kuruldu ama yanıt gelmedi: sunucu yavaş ya da istek takıldı. Sistem tanımında ortama `zaman_asimi_sn: 60` yazın; isteği `iz` içinde kontrol edin. |
 | `bağlantı kurulamadı` (ConnectTimeout) / `DNS` | Bu bilgisayardan sunucuya yol yok: VPN, kurum ağı veya proxy. Tarayıcı proxy ile çıkıyorsa sistem tanımında ortama `proxy: http://...` yazın. `check_connection` hangi adımda koptuğunu gösterir. |
 | `install.cmd` → EXIT 10 | Python 3.10–3.14 yok veya PATH'te değil. Python 3.12'yi kurun ("Add to PATH" ve "py launcher" seçili), VS Code'u yeniden açın. |

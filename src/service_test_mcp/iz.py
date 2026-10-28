@@ -81,6 +81,17 @@ def siniflandir(exc: BaseException, url: str, timeout: Any, proxy: str | None) -
         out["olasi_nedenler"] = ["Bu bilgisayardan sunucuya ağ yolu yok (VPN kapalı / kurum ağı dışında)",
                                  "Kurum proxy'si gerekiyor ama kullanılmıyor (sistem tanımında 'proxy' veya "
                                  "HTTPS_PROXY)", "Güvenlik duvarı bu bağlantıyı düşürüyor"]
+    elif "handshake operation timed out" in text or "_ssl.c" in text and "timed out" in text:
+        # urllib3 reports this as a read timeout, but no request was sent: TLS never completed
+        out["asama"] = (f"TCP bağlantısı açıldı ama TLS el sıkışması {timeout} sn içinde tamamlanmadı; istek hiç "
+                        f"gönderilmedi (proxy: {proxy or 'yok, doğrudan bağlantı'})")
+        out["olasi_nedenler"] = (["Proxy bu bağlantıyı tamamlamıyor: proxy adresi / kimlik doğrulaması"] if proxy else
+                                 ["Kurum ağı bu adrese doğrudan çıkışa izin vermiyor, proxy üzerinden çıkmak gerekiyor."
+                                  " Tarayıcı Windows proxy / PAC (otomatik yapılandırma) ile çıkıyor olabilir; Python "
+                                  "PAC dosyasını okumaz. check_connection Windows proxy ayarını gösterir; bulunan "
+                                  "proxy'yi sistem tanımında ortama 'proxy:' olarak yazın",
+                                  "Güvenlik duvarı bu sunucuya TLS trafiğini düşürüyor (VPN kapalı / kurum ağı dışında)",
+                                  "Sunucu (veya önündeki yük dengeleyici) bu istemciyle el sıkışmayı tamamlamıyor"])
     elif isinstance(exc, requests.exceptions.ReadTimeout) or "ReadTimeout" in text or "Read timed out" in text:
         out["asama"] = f"bağlantı kuruldu, istek gitti; sunucu {timeout} sn içinde yanıt vermedi"
         out["olasi_nedenler"] = ["Sunucu yavaş veya istek takıldı (zaman_asimi_sn artırılabilir)",

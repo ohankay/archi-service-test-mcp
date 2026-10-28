@@ -7,7 +7,10 @@ open in 5 s, no proxy configured -> VPN / proxy".
 
 from __future__ import annotations
 
+import os
+import re
 import socket
+import sys
 import ssl
 import time
 from typing import Any
@@ -33,9 +36,15 @@ def kontrol_et(engine: Any, service: str, environment: str | None, tcp_sn: float
                            "ayarlar": {"zaman_asimi_sn": svc.timeout_s or env.timeout_s,
                                        "proxy": proxy or "yok (doğrudan bağlantı)",
                                        "proxy_kaynagi": "sistem tanımı" if env.proxy else
-                                       ("HTTPS_PROXY / HTTP_PROXY ortam değişkeni" if proxy else "-"),
+                                       ("HTTPS_PROXY ortam değişkeni ya da Windows sabit proxy ayarı" if proxy else "-"),
                                        "tls_dogrulama": settings.get("verify")},
                            "adimlar": []}
+    win = windows_proxy()
+    if win:
+        out["windows_proxy"] = win
+    out["ortam_degiskenleri"] = {k: os.environ[k] for k in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy",
+                                                            "NO_PROXY", "no_proxy", "REQUESTS_CA_BUNDLE")
+                                 if os.environ.get(k)}
     adimlar: list[dict[str, Any]] = out["adimlar"]
 
     # 1. DNS
@@ -89,9 +98,12 @@ def kontrol_et(engine: Any, service: str, environment: str | None, tcp_sn: float
                                                               f"{name('issuer')}; bitiş: {cert.get('notAfter')}"
                                                               if cert else " (doğrulama kapalı)")})
         except (OSError, ssl.SSLError) as exc:
+            timed_out = "timed out" in str(exc)
             adimlar.append({"adim": "TLS el sıkışma", "durum": "hata", "sure_ms": _ms(started),
-                            "detay": f"{type(exc).__name__}: {exc}",
-                            "olasi_nedenler": ["Kurumun sertifika otoritesi tanınmıyor: ortama "
+                            "detay": f"{type(exc).__name__}: {exc}"
+                            + (f" (TCP açıldı, TLS {tcp_sn:g} sn içinde tamamlanmadı)" if timed_out else ""),
+                            "olasi_nedenler": siniflandir(exc, base, tcp_sn, None).get("olasi_nedenler", [])
+                            if timed_out else ["Kurumun sertifika otoritesi tanınmıyor: ortama "
                                                "tls_dogrula: <kurum CA .pem yolu> yazın",
                                                "Test ortamında geçici olarak tls_dogrula: false"]})
 
@@ -109,8 +121,46 @@ def kontrol_et(engine: Any, service: str, environment: str | None, tcp_sn: float
                         "detay": detail["asama"], "zincir": detail["zincir"],
                         "olasi_nedenler": detail.get("olasi_nedenler", [])})
 
+    if win and win.get("pac_proxyleri") and not proxy:
+        out["oneri"] = ("Windows bu bilgisayarda proxy'yi otomatik yapılandırma (PAC) dosyasıyla seçiyor; Python bunu "
+                        "kullanmaz ve doğrudan bağlanmaya çalışır. PAC dosyasındaki proxy'lerden biri "
+                        f"({', '.join(win['pac_proxyleri'][:3])}) sistem tanımında ortama 'proxy: http://<adres>' "
+                        "olarak yazılıp tekrar denenebilir.")
     broken = next((a for a in adimlar if a["durum"] == "hata"), None)
     out["sonuc"] = "erişilebilir" if broken is None else f"erişilemiyor: '{broken['adim']}' adımında kesildi"
     out["success"] = broken is None
     return out
 
+
+def windows_proxy() -> dict[str, Any] | None:
+    """The proxy Windows (and so the browser) uses: fixed proxy and/or PAC script. None outside Windows."""
+    if sys.platform != "win32":
+        return None
+    import winreg
+
+    out: dict[str, Any] = {}
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                            r"Software\Microsoft\Windows\CurrentVersion\Internet Settings") as key:
+            for name, label in (("ProxyEnable", "sabit_proxy_acik"), ("ProxyServer", "sabit_proxy"),
+                                ("ProxyOverride", "proxy_disi"), ("AutoConfigURL", "pac_adresi")):
+                try:
+                    out[label] = winreg.QueryValueEx(key, name)[0]
+                except OSError:
+                    pass
+    except OSError as exc:
+        return {"hata": str(exc)}
+    if "sabit_proxy_acik" in out:
+        out["sabit_proxy_acik"] = bool(out["sabit_proxy_acik"])
+    pac = out.get("pac_adresi")
+    if pac:
+        out["not"] = "Python PAC dosyasını okumaz; tarayıcı bu dosyaya göre proxy seçer."
+        try:
+            import requests
+
+            text = requests.get(pac, timeout=5).text
+            out["pac_proxyleri"] = sorted(set(re.findall(r"PROXY\s+([\w.\-]+:\d+)", text)))
+            out["pac_basi"] = text[:3000]
+        except Exception as exc:  # noqa: BLE001 - shown, not fatal
+            out["pac_okunamadi"] = f"{type(exc).__name__}: {str(exc)[:300]}"
+    return out

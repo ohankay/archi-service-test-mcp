@@ -99,6 +99,28 @@ def test_timeout_says_where_it_broke(tanimlar, tmp_path, monkeypatch):
     assert "deger-UYGULAMA" not in json.dumps(r)
 
 
+def test_tls_handshake_timeout_is_not_called_a_slow_server(tanimlar, monkeypatch):
+    sock = _silent_server()
+    _point_prep_to(tanimlar, f"https://127.0.0.1:{sock.getsockname()[1]}", "zaman_asimi_sn: 1\n    proxy: yok\n    ")
+    for name in ("UYGULAMA_SIFRESI", "UYGULAMA_SIFRESI_2", "MUSTERI_SIFRESI", "OTP"):
+        monkeypatch.setenv(f"STM_SECRET_{name}", f"deger-{name}")
+    e = Engine()
+    server.set_engine(e)
+    try:
+        r = _run(server.run_test("Hesap listeleme", customer="1000001", environment="prep"))
+        c = _run(server.check_connection("Mobil Bankacılık", "prep"))
+    finally:
+        server.set_engine(None)
+        e.close()
+        sock.close()
+    hata = r["iz"][0]["hata"]
+    assert "TLS el sıkışması 1.0 sn içinde tamamlanmadı; istek hiç gönderilmedi" in hata["asama"]
+    assert any("PAC" in n for n in hata["olasi_nedenler"])
+    s = c["sistemler"][0]
+    assert [a["durum"] for a in s["adimlar"][:3]] == ["tamam", "tamam", "hata"]
+    assert "TLS" in s["sonuc"] and any("proxy" in n for n in s["adimlar"][2]["olasi_nedenler"])
+
+
 def test_check_connection_walks_the_steps(seffaf, tanimlar):
     r = _run(server.check_connection(environment="demo"))
     s = r["sistemler"][0]
