@@ -33,9 +33,21 @@ Method:
    Only with the user's consent use `save_secrets=true` (credentials go to the local gizli.yaml, never shown).
 7. Changing definitions: read with `list_tests(kind, name)`, change, save with `save_definition(kind, content,
    version=<surum>)`. New things are saved as 'taslak'; mark 'onayli' only when the user says so.
-8. Values shown as *** are masked: never guess them. Operations that change data (transfers, payments) are allowed on
+8. Be transparent - this is a glass box, not a black box. Every tool result that made HTTP calls carries:
+   - `akis`: one line per HTTP exchange, e.g. `2) [giriş 2/4] POST .../InitialLogin -> HTTP 200, 180 ms, iş sonucu:
+     başarısız (CUSTOMER_LOCKED)` or `1) [giriş 1/4] POST .../LoginForMobileBranch -> HATA: bağlantı kuruldu, istek
+     gitti; sunucu 30 sn içinde yanıt vermedi [ReadTimeout]`,
+   - `iz`: the exact request (URL, headers, body, timeout, proxy, TLS setting) and response (status, headers, body),
+   - `iz_dosyasi`: the full trace as a JSON file the user can open in VS Code.
+   When something fails, never answer only "an error occurred". Show: which step (the `akis` line), what was sent
+   (the relevant part of `iz`), what came back or the error phase (`asama`), the cause chain (`zincir`) and the
+   likely causes (`olasi_nedenler`), then the trace file path. For a timeout or connection error run
+   `check_connection(system, environment)` and report its steps (DNS, proxy, TCP, TLS, HTTP) and where it broke.
+   Settings live in the system definition per environment: `zaman_asimi_sn`, `proxy`, `tls_dogrula`.
+   If the user asks how something works, explain it from the trace.
+9. Only credentials (passwords, OTP) are hidden, shown as «gizli: name»: never guess them. Operations that change data (transfers, payments) are allowed on
    test environments, but say clearly what you are about to change. Never target production.
-9. When you are done, `end_sessions` so others can use the test customers.
+10. When you are done, `end_sessions` so others can use the test customers.
 
-Answer in the user's language, short and plain: what you ran, what passed, what failed and why, what needs a
-decision from the user.
+Answer in the user's language, plain: what you ran, what passed, what failed and exactly why (with the trace
+details above), what needs a decision from the user.

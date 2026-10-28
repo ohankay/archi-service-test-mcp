@@ -6,12 +6,14 @@ import json
 import logging
 import os
 import threading
+import traceback
 from typing import Any, Callable
 
 import anyio
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from . import baglanti, iz
 from .config import ConfigError
 from .engine import Engine
 from .normalize import json_ready
@@ -49,7 +51,12 @@ PowerShell, curl or Invoke-WebRequest for service calls - use these tools.
 - Checks are short lines: başarılı | başarısız | süre < 3 sn | X sayısı >= 1 | X boş değil | X = Y | X eşleşir ^TR |
   X arasında a ve b | X içerir y | hata kodu = KOD | her LISTE için A <= B. Prefer rules over fixed values for data
   that changes (balances, rates, dates).
-- Values shown as *** are masked. Production environments are refused.
+- Transparency: every result that made HTTP calls has 'akis' (one line per exchange: login step, URL, HTTP status
+  or error phase, time, business result), 'iz' (the exact requests and responses) and 'iz_dosyasi' (full trace
+  JSON). When something fails, show the user the failing 'akis' line, the error phase ('asama'), the cause chain
+  ('zincir') and 'olasi_nedenler' - never only "an error occurred". Timeouts / connection errors -> check_connection.
+- check_connection(system, environment): DNS -> proxy -> TCP -> TLS -> HTTP step by step; says where it breaks.
+- Only credentials are hidden, shown as «gizli: name». Production environments are refused.
 """
 
 mcp = FastMCP("archi-service-test", instructions=INSTRUCTIONS)
@@ -57,6 +64,7 @@ _engine: Engine | None = None
 _engine_lock = threading.Lock()
 _last: dict[str, Any] = {}
 _vars: dict[str, Any] = {}   # session variables saved by 'extract' on soap_call / rest_call
+IZ_LIMIT = int(os.environ.get("STM_IZ_SINIR", "60000"))  # characters of trace returned with a result
 _EXPECTED = (ConfigError, ScenarioError, TemplateError, ValueError, FileNotFoundError, PermissionError)
 READ = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
 CALL = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=True)
@@ -128,18 +136,39 @@ def _error(exc: BaseException) -> dict[str, Any]:
     out: dict[str, Any] = {"success": False, "error": {"type": type(exc).__name__, "message": message[:3000]}}
     if hint:
         out["error"]["hint"] = hint
+    # unexpected: show where it happened in the server code, so nothing is a black box
+    out["error"]["zincir"] = iz.hata_zinciri(exc)
+    out["error"]["konum"] = [f"{f.filename.replace(chr(92), '/').rsplit('/service_test_mcp/', 1)[-1]}:{f.lineno} "
+                             f"{f.name}: {(f.line or '').strip()[:120]}"
+                             for f in traceback.extract_tb(exc.__traceback__)[-8:]]
     return out
 
 
+def _with_trace(result: dict[str, Any], kayitlar: list[dict[str, Any]], title: str) -> dict[str, Any]:
+    """Every HTTP exchange the tool made goes back with the result: readable lines, the exchanges, the trace file."""
+    if not kayitlar:
+        return result
+    e = engine()
+    result["akis"] = [iz.satir(k) for k in kayitlar]
+    result["iz"] = e.view(iz.kisa(kayitlar), limit=IZ_LIMIT)
+    path = iz.dosyaya_yaz(e.view(kayitlar, limit=10_000_000), title)
+    if path:
+        result["iz_dosyasi"] = path
+    return result
+
+
 async def _call(fn: Callable[[], Any]) -> str:
+    title = fn.__qualname__.split(".")[0]
+
     def guarded() -> Any:
-        try:
-            result = fn()
-            if isinstance(result, dict) and "success" not in result:
-                result = {"success": True, **result}
-            return result
-        except Exception as exc:  # noqa: BLE001 - reported to the model as a structured error
-            return engine().view(_error(exc))
+        with iz.topla() as kayitlar:
+            try:
+                result = fn()
+                if isinstance(result, dict) and "success" not in result:
+                    result = {"success": True, **result}
+                return _with_trace(result, kayitlar, title) if isinstance(result, dict) else result
+            except Exception as exc:  # noqa: BLE001 - reported to the model as a structured error
+                return _with_trace(engine().view(_error(exc)), kayitlar, title)
 
     result = await anyio.to_thread.run_sync(guarded)
     return json.dumps(json_ready(result), ensure_ascii=False, default=str, separators=(",", ":"))
@@ -333,6 +362,19 @@ async def list_test_customers(service: str, environment: str | None = None) -> s
         runtime = e.profile(service)
         env = e.settings.environment(environment)
         return e.view(runtime.status(env.name))
+    return await _call(run)
+
+
+@mcp.tool(annotations=READ)
+async def check_connection(system: str | None = None, environment: str | None = None) -> str:
+    """Connection diagnosis when a call times out or cannot connect: DNS -> proxy -> TCP -> TLS -> one HTTP request,
+    step by step, with the timings, the proxy and TLS settings in use and where it breaks. Sends no business request
+    and needs no customer. system: system name (default: all); environment: default environment if omitted."""
+    def run() -> dict[str, Any]:
+        e = engine()
+        names = [system] if system else [n for n, s in e.settings.services.items() if s.protocol == "rest"]
+        results = [baglanti.kontrol_et(e, n, environment) for n in names]
+        return e.view({"success": all(r["success"] for r in results), "sistemler": results})
     return await _call(run)
 
 
@@ -633,7 +675,7 @@ async def reload_config() -> str:
 
 # The default tool set (STM_TOOLSET=temel): definitions, tests, approaches. Seven tools, plain names.
 TEMEL_TOOL_NAMES = ("list_tests", "run_test", "call_operation", "save_definition", "generate_tests", "import_log",
-                    "end_sessions")
+                    "check_connection", "end_sessions")
 # STM_TOOLSET=uzman adds the raw SOAP/REST, profile and YAML-scenario tools.
 UZMAN_TOOL_NAMES = ("list_services", "describe_service", "describe_operation", "check_service", "list_operations",
                     "call_profile_operation", "list_test_customers", "import_traffic_log", "soap_call", "rest_call",

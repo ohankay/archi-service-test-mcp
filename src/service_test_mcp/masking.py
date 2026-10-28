@@ -9,11 +9,21 @@ Built-in rules (``masking.builtin: true``):
 * Values anywhere in the response - Turkish ID numbers (TCKN, checksum validated), TR IBANs, card numbers (Luhn
   validated), Turkish mobile numbers and e-mail addresses.
 * Exact secret values (passwords, tokens read from the environment) are replaced wherever they appear.
+
+Modes (``STM_SEFFAF``):
+
+* ``seffaf`` (default - a learning / test project, nothing is hidden for its own sake): personal data, session keys
+  and tokens are shown as they are; only credentials (passwords, OTP - values that came from STM_SECRET_* or the
+  local gizli.yaml) are shown by name, e.g. ``«gizli: musteri_sifresi»``. ``STM_GIZLILERI_GOSTER=1`` shows those too.
+* ``maskeli``: everything above is masked (production-like data).
+
+The audit log is always written masked (``kati=True``), whatever the mode.
 """
 
 from __future__ import annotations
 
 import fnmatch
+import os
 import re
 from typing import Any, Iterable
 
@@ -53,15 +63,57 @@ def luhn(digits: str) -> bool:
     return total % 10 == 0
 
 
-class Masker:
-    def __init__(self, config: MaskingConfig | None = None, secrets: Iterable[str] = ()) -> None:
-        self.config = config or MaskingConfig()
-        self.secrets = {s for s in secrets if s and len(s) >= 4}
-        self._extra = [(name, re.compile(rx)) for name, rx in self.config.patterns.items()]
+MODES = ("seffaf", "maskeli")
 
-    def add_secret(self, value: str | None) -> None:
+
+def mode_from_env() -> str:
+    value = (os.environ.get("STM_SEFFAF") or "seffaf").strip().lower()
+    return "maskeli" if value in ("maskeli", "0", "false", "hayir", "hayır", "kapali", "kapalı", "masked") \
+        else "seffaf"
+
+
+class Masker:
+    def __init__(self, config: MaskingConfig | None = None, secrets: Iterable[str] = (),
+                 mode: str | None = None, show_secrets: bool | None = None) -> None:
+        self.config = config or MaskingConfig()
+        self.secrets: dict[str, str] = {s: "" for s in secrets if s and len(s) >= 4}   # value -> label
+        self.credentials: set[str] = set()     # secrets that are credentials (shown by name even in 'seffaf')
+        self._extra = [(name, re.compile(rx)) for name, rx in self.config.patterns.items()]
+        self.mode = mode or mode_from_env()
+        if show_secrets is None:
+            show_secrets = os.environ.get("STM_GIZLILERI_GOSTER", "").strip().lower() in ("1", "true", "evet", "yes")
+        self.show_secrets = show_secrets
+
+    def add_secret(self, value: str | None, label: str | None = None, credential: bool = False) -> None:
+        """Remember a secret value. credential=True: a password / OTP (label = its name, e.g. musteri_sifresi);
+        otherwise a session key or token (hidden only in 'maskeli' mode)."""
         if value and len(value) >= 4:
-            self.secrets.add(value)
+            if label or value not in self.secrets:
+                self.secrets[value] = label or self.secrets.get(value, "")
+            if credential:
+                self.credentials.add(value)
+
+    @property
+    def seffaf(self) -> bool:
+        return self.mode == "seffaf"
+
+    def _label(self, value: str) -> str:
+        label = self.secrets.get(value) or ""
+        return f"«gizli: {label}»" if label else "«gizli»"
+
+    def _credentials_only(self, obj: Any) -> Any:
+        if self.show_secrets or not self.credentials:
+            return obj
+        if isinstance(obj, dict):
+            return {k: self._credentials_only(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [self._credentials_only(v) for v in obj]
+        if isinstance(obj, str):
+            for secret in sorted(self.credentials, key=len, reverse=True):
+                if secret in obj:
+                    obj = obj.replace(secret, self._label(secret))
+            return obj
+        return obj
 
     # -- helpers -------------------------------------------------------------------------------------------------
     def _partial(self, value: str) -> str:
@@ -83,8 +135,12 @@ class Masker:
             return "partial"
         return None
 
-    def mask_text(self, text: str) -> str:
-        if not self.config.enabled or not text:
+    def mask_text(self, text: str, kati: bool = False) -> str:
+        if not text:
+            return text
+        if self.seffaf and not kati:
+            return self._credentials_only(text)
+        if not self.config.enabled:
             return text
         for secret in sorted(self.secrets, key=len, reverse=True):
             text = text.replace(secret, "***")
@@ -103,15 +159,17 @@ class Masker:
             text = rx.sub(lambda m: self._partial(m.group(0)), text)
         return text
 
-    def mask(self, obj: Any, _key: str | None = None) -> Any:
-        """Return a masked deep copy (dict / list / scalars)."""
+    def mask(self, obj: Any, _key: str | None = None, kati: bool = False) -> Any:
+        """Return a masked deep copy (dict / list / scalars). kati=True masks fully whatever the mode (audit log)."""
+        if self.seffaf and not kati:
+            return self._credentials_only(obj)
         if not self.config.enabled:
             return obj
         kind = self._field_kind(_key) if _key else None
         if isinstance(obj, dict):
-            return {k: self.mask(v, str(k)) for k, v in obj.items()}
+            return {k: self.mask(v, str(k), kati) for k, v in obj.items()}
         if isinstance(obj, (list, tuple)):
-            return [self.mask(v, _key) for v in obj]
+            return [self.mask(v, _key, kati) for v in obj]
         if obj is None or isinstance(obj, bool):
             return obj
         if kind == "secret":
@@ -121,13 +179,15 @@ class Masker:
         if kind == "plain":
             return obj
         if isinstance(obj, int) and len(str(abs(obj))) >= 11:
-            masked = self.mask_text(str(obj))
+            masked = self.mask_text(str(obj), kati)
             return masked if masked != str(obj) else obj
         if isinstance(obj, str):
-            return self.mask_text(obj)
+            return self.mask_text(obj, kati)
         return obj
 
-    def mask_headers(self, headers: dict[str, Any]) -> dict[str, Any]:
+    def mask_headers(self, headers: dict[str, Any], kati: bool = False) -> dict[str, Any]:
+        if self.seffaf and not kati:
+            return self._credentials_only(dict(headers))
         out = {}
         for k, v in headers.items():
             low = k.lower()
@@ -135,5 +195,5 @@ class Masker:
                     self._field_kind(low) == "secret":
                 out[k] = "***"
             else:
-                out[k] = self.mask_text(str(v))
+                out[k] = self.mask_text(str(v), kati)
         return out

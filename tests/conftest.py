@@ -8,6 +8,13 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+@pytest.fixture(autouse=True)
+def _masked_by_default(monkeypatch):
+    """Most tests check masking; the transparent default (STM_SEFFAF=seffaf) has its own tests."""
+    monkeypatch.setenv("STM_SEFFAF", "maskeli")
+    monkeypatch.delenv("STM_GIZLILERI_GOSTER", raising=False)
 DEMO = ROOT / "examples" / "demo"
 
 
@@ -55,6 +62,7 @@ def engine(demo_config):
 def clean_env(**extra: str) -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if not k.startswith("STM_")}
     env["STM_TOOLSET"] = "uzman"          # every tool; tests of the default set pass STM_TOOLSET="temel"
+    env["STM_SEFFAF"] = "maskeli"
     env.update(extra)
     return env
 

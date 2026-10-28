@@ -9,7 +9,10 @@ import time
 from typing import Any
 from urllib.parse import urlsplit
 
+import requests
+
 from .config import ConfigError, EnvironmentConfig, ServiceConfig, Settings
+from .iz import siniflandir
 from .normalize import parse_json_text
 from .transport import GuardedSession, build_session
 
@@ -63,31 +66,48 @@ class RestAdapter:
                               f"'{env.name}' has allow_mutating: false.")
         url = self.url_for(service, env, path)
         session, _ = self.session(service, env)
-        kwargs: dict[str, Any] = {"params": query or None, "timeout": service.timeout_s or env.timeout_s,
-                                  "headers": {str(k): str(v) for k, v in (headers or {}).items()} or None}
+        timeout = service.timeout_s or env.timeout_s
+        send_headers = {str(k): str(v) for k, v in (headers or {}).items()}
+        data: Any = None
         if body is not None:
-            kwargs["data"] = json.dumps(body, ensure_ascii=False, default=str).encode("utf-8")
-            kwargs["headers"] = {"Content-Type": "application/json; charset=utf-8", **(kwargs["headers"] or {})}
+            data = json.dumps(body, ensure_ascii=False, default=str).encode("utf-8")
+            send_headers = {"Content-Type": "application/json; charset=utf-8", **send_headers}
         elif body_text is not None:
-            kwargs["data"] = body_text.encode("utf-8")
+            data = body_text.encode("utf-8")
         elif form is not None:
-            kwargs["data"] = {str(k): str(v) for k, v in form.items()}
+            data = {str(k): str(v) for k, v in form.items()}
         result: dict[str, Any] = {"protocol": "rest", "service": service.name, "environment": env.name,
                                   "method": method, "path": route, "status": None, "fault": None, "body": None,
                                   "headers": {}}
+        # prepared by hand so the trace shows what really goes out: the session's headers, auth, proxy, TLS setting
+        prepared = session.prepare_request(requests.Request(method, url, params=query or None,
+                                                            headers=send_headers or None, data=data))
+        settings = session.merge_environment_settings(prepared.url, {}, None, session.verify, None)
+        proxies = settings.get("proxies") or {}
+        proxy = proxies.get(urlsplit(prepared.url or url).scheme) or proxies.get("all")
+        result["istek"] = {"metod": method, "url": prepared.url, "basliklar": dict(prepared.headers),
+                           "govde": body if body is not None else (body_text if body_text is not None else form),
+                           "zaman_asimi_sn": timeout, "proxy": proxy or None, "tls_dogrulama": settings.get("verify")}
         started = time.perf_counter()
         try:
-            resp = session.request(method, url, **kwargs)
-        except ConfigError:
+            resp = session.send(prepared, timeout=timeout, allow_redirects=True, **settings)
+        except ConfigError as exc:
+            result["elapsed_ms"] = round((time.perf_counter() - started) * 1000, 1)
+            exc.istek = result["istek"]  # type: ignore[attr-defined]  # traced by the engine, then re-raised
             raise
         except Exception as exc:  # noqa: BLE001 - connection errors are results, not crashes
             result["elapsed_ms"] = round((time.perf_counter() - started) * 1000, 1)
-            result["error"] = {"type": type(exc).__name__, "message": str(exc)[:2000]}
+            detail = siniflandir(exc, prepared.url or url, timeout, proxy)
+            result["error"] = {"type": type(exc).__name__, "message": detail["asama"] + " - " + str(exc)[:1500],
+                               **detail}
             return result
         result["elapsed_ms"] = round((time.perf_counter() - started) * 1000, 1)
         result["status"] = resp.status_code
+        result["reason"] = resp.reason
         result["url"] = resp.url
         result["headers"] = dict(resp.headers)
+        if resp.history:
+            result["redirects"] = [f"{r.status_code} {r.headers.get('Location', '')}" for r in resp.history]
         ctype = resp.headers.get("Content-Type", "")
         text = resp.content.decode(resp.encoding or "utf-8", "replace") if resp.content else ""
         if text and ("json" in ctype or text.lstrip()[:1] in ("{", "[")):

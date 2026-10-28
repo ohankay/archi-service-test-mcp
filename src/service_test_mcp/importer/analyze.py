@@ -270,7 +270,7 @@ class Importer:
             for body in (m.exchange.request_body, m.exchange.response_body):
                 for p, v in _leaves(body):
                     if isinstance(v, str) and is_secret(p.rsplit(".", 1)[-1]):
-                        masker.add_secret(v)
+                        masker.add_secret(v, p.rsplit(".", 1)[-1], credential=True)
 
         produced: dict[str, tuple[str, str]] = {}   # value -> (operation, generic JSONPath) of the latest response
         accs: dict[str, OpAccumulator] = {}

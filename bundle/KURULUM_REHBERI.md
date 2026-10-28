@@ -106,7 +106,7 @@ Kullanıcıya "Servis testleri için hazır bir custom agent ister misin?" diye 
 
 1. `Ctrl+Shift+P` → **MCP: List Servers** → **archi-service-test** → **Start Server**. Güven onayı gelirse **Trust** deyin.
 2. Şifre/token tanımlandıysa VS Code her birini bir kez soracak ve güvenli depoda saklayacak.
-3. Copilot Chat → **Agent** modu → araç (🔧) simgesinde `archi-service-test` altında 7 araç görünmeli (`list_tests`, `run_test`, `call_operation`, `generate_tests`, `save_definition`, `import_log`, `end_sessions`). Ham SOAP/REST araçları için `mcp.json` içinde `"env": {"STM_TOOLSET": "uzman"}`.
+3. Copilot Chat → **Agent** modu → araç (🔧) simgesinde `archi-service-test` altında 8 araç görünmeli (`list_tests`, `run_test`, `call_operation`, `generate_tests`, `save_definition`, `import_log`, `check_connection`, `end_sessions`). Ham SOAP/REST araçları için `mcp.json` içinde `"env": {"STM_TOOLSET": "uzman"}`.
 4. Test için: **"archi-service-test ile tanımlı testleri listele"**, sonra **"Kur bilgisi listeleme testini <müşteri no> ile prep'te çalıştır"**. Demo için (demo sunucusu açıkken): **"Kur bilgisi listeleme testini 1000001 ile demo ortamında çalıştır"**.
 5. Sorun olursa: **MCP: List Servers** → **archi-service-test** → **Show Output**.
 
@@ -118,6 +118,9 @@ Kurulum burada biter.
 
 | Belirti | Neden / Çözüm |
 |---|---|
+| Ajan yalnızca "zaman aşımı" / "hata" diyor | Ajandan sonucun `akis` satırlarını, hatanın `asama`, `zincir` ve `olasi_nedenler` alanlarını göstermesini isteyin; tam iz `iz_dosyasi` yolundaki JSON dosyasındadır (`%USERPROFILE%\.service-test-mcp\izler\`). Sonra **"check_connection ile prep bağlantısını kontrol et"** deyin. |
+| `sunucu N sn içinde yanıt vermedi` (ReadTimeout) | Bağlantı kuruldu ama yanıt gelmedi: sunucu yavaş ya da istek takıldı. Sistem tanımında ortama `zaman_asimi_sn: 60` yazın; isteği `iz` içinde kontrol edin. |
+| `bağlantı kurulamadı` (ConnectTimeout) / `DNS` | Bu bilgisayardan sunucuya yol yok: VPN, kurum ağı veya proxy. Tarayıcı proxy ile çıkıyorsa sistem tanımında ortama `proxy: http://...` yazın. `check_connection` hangi adımda koptuğunu gösterir. |
 | `install.cmd` → EXIT 10 | Python 3.10–3.14 yok veya PATH'te değil. Python 3.12'yi kurun ("Add to PATH" ve "py launcher" seçili), VS Code'u yeniden açın. |
 | EXIT 11 | `%USERPROFILE%` yazılamıyor ya da antivirüs engelliyor. `set STM_INSTALL_HOME=D:\Araclar\service-test-mcp` ile başka klasöre kurun. |
 | EXIT 12 | `wheelhouse` eksik veya Python sürümü desteklenmiyor (3.15+). Zip'i yeniden açın ya da Python 3.12 kullanın. |

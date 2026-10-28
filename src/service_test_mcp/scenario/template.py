@@ -117,7 +117,11 @@ class Context:
                                     "(in VS Code: the server's env in mcp.json with an ${input:...}) or put "
                                     f"'{name}' into the local gizli.yaml for this environment.")
             if self.on_secret:
-                self.on_secret(value)
+                try:
+                    self.on_secret(value, name[len(SECRET_PREFIX):].lower() if name.startswith(SECRET_PREFIX)
+                                   else name, True)
+                except TypeError:          # a plain one-argument callback
+                    self.on_secret(value)
             return value
         try:
             return lookup(self.variables, expr)

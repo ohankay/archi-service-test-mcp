@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from .. import iz
 from ..config import ConfigError, EnvironmentConfig
 from ..scenario.asserts import evaluate, find
 from ..scenario.template import Context
@@ -199,6 +200,9 @@ class ProfileRuntime:
         if test_customer and test_customer != NO_TEST_CUSTOMER:
             result["test_customer"] = test_customer
         result["business"] = self.business(result)
+        kayit = iz.son()
+        if kayit is not None and kayit.get("islem") == op.name and "hata" not in kayit:
+            kayit["is_sonucu"] = result["business"]
         if self.hooks is not None and hasattr(self.hooks, "inspect"):
             self.hooks.inspect(result, {"environment": env.name, "operation": op.name, "session": session_vars,
                                         "test_customer": test_customer_vars})
@@ -276,7 +280,7 @@ class ProfileRuntime:
             raise ProfileError(f"test_customer '{test_customer.name}': source operation '{op.name}' must not need a "
                                "session "
                                "(set session: false in the catalog)")
-        result = self._send(env, op, step.params, dict(self.profile.session.defaults), {}, "test_customer", None)
+        result = self._send(env, op, step.params, dict(self.profile.session.defaults), {}, "müşteri kaynağı", None)
         if not result["business"]["success"]:
             raise ProfileError(f"test_customer '{test_customer.name}': {op.name} failed: "
                                f"{result['business'].get('errors')}")
@@ -347,21 +351,28 @@ class ProfileRuntime:
     def _login(self, env: EnvironmentConfig, st: SessionState) -> None:
         st.vars = dict(self.profile.session.defaults)
         st.logged_in = False
-        for step in self.profile.session.login:
+        steps = self.profile.session.login
+        for i, step in enumerate(steps, 1):
             op = self.profile.catalog.get(step.operation)
             if op is None:
                 raise LoginFailed(f"login step '{step.operation}' is not in the catalog of '{self.service}'")
-            result = self._send(env, op, step.params, st.vars, st.test_customer_vars, "login", st.test_customer)
+            where = f"giriş {i}/{len(steps)}"
+            result = self._send(env, op, step.params, st.vars, st.test_customer_vars, where, st.test_customer)
             if not result["business"]["success"]:
-                raise LoginFailed(f"login step {op.name} failed for test_customer '{st.test_customer}' ({env.name}): "
-                                  f"{result['business'].get('errors') or result.get('status')}")
+                reason = (result.get("error") or {}).get("asama") or \
+                    result["business"].get("errors") or f"HTTP {result.get('status')}"
+                raise LoginFailed(f"{where} ({op.name}) failed for test_customer '{st.test_customer}' ({env.name}): "
+                                  f"{reason}")
             for name, path in step.extract.items():
                 values = self._find(result.get("body"), path)
                 if not values:
-                    raise LoginFailed(f"login step {op.name}: {path} not found in the response")
+                    raise LoginFailed(f"{where} ({op.name}): {path} not found in the response")
                 st.vars[name] = values[0]
                 if isinstance(values[0], str):
-                    self.engine.masker.add_secret(values[0])
+                    self.engine.masker.add_secret(values[0], f"oturum.{name}")
+            kayit = iz.son()
+            if kayit is not None and step.extract:
+                kayit["alinan"] = [f"oturum.{n}" for n in step.extract]
         st.created = st.last_used = time.time()
         st.logins += 1
         st.logged_in = True
@@ -374,7 +385,7 @@ class ProfileRuntime:
                 step: StepSpec = self.profile.session.logout
                 op = self.profile.catalog.get(step.operation)
                 if op is not None:
-                    res = self._send(env, op, step.params, st.vars, st.test_customer_vars, "logout", st.test_customer)
+                    res = self._send(env, op, step.params, st.vars, st.test_customer_vars, "çıkış", st.test_customer)
                     out["logged_out"] = bool(res["business"]["success"])
             except Exception as exc:  # noqa: BLE001
                 out["logout_error"] = str(exc)[:300]

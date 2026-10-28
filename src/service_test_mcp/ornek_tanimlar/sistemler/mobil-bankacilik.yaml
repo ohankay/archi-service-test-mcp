@@ -22,6 +22,10 @@ ortamlar:
   prep:
     adres: https://mobileprep.kuveytturk.com.tr/BOA.Integration.MobileBranch
     aciklama: Preprod (mobil uygulamanin prep ortami)
+    # Baglanti ayarlari (yazilmazsa: 30 sn, sistemin proxy ayari, Windows sertifika deposu/varsayilan CA):
+    # zaman_asimi_sn: 60                         # yanit icin en fazla bekleme
+    # proxy: http://proxy.sirket.local:8080      # kurum proxy'si gerekiyorsa; 'yok' = HTTPS_PROXY'yi kullanma
+    # tls_dogrula: C:\kurum\kurum-ca.pem          # kurumun sertifika otoritesi; yalnizca test icin: false
     degiskenler:
       uygulama_kullanici: MobilePublicTest
       uygulama_sifresi: "{{gizli.uygulama_sifresi}}"

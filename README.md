@@ -30,7 +30,7 @@ Kurulumla birlikte (`service-test-mcp --init`, kurulum betiği bunu kendisi çal
 
 Sistem tanımında iki ortam var: yerel **demo** ve gerçek **prep** (`mobileprep.kuveytturk.com.tr`, logdaki cihaz ve uygulama bilgileriyle). **Şifreler ve OTP tanım dosyalarında yer almaz.** Bunlar ya ortam değişkeninden (`STM_SECRET_...`) okunur ya da yalnızca sizin bilgisayarınızdaki `gizli.yaml` dosyasından. Bu dosyayı `import_log(save_secrets=true)` kendi logunuzdan doldurur. Ek olarak kuruma özel bir tanım klasörü kullanılacaksa, zip klasörüne `kurum-tanimlari` adıyla konduğunda kurulum onu da yükler.
 
-## Ajanın araçları (7)
+## Ajanın araçları (8)
 
 | Araç | Ne yapar |
 |---|---|
@@ -40,11 +40,44 @@ Sistem tanımında iki ortam var: yerel **demo** ve gerçek **prep** (`mobilepre
 | `generate_tests` | Bir yaklaşımla, işlemin tanımından **kodla** taslak tablo testi üretir (deterministik) |
 | `save_definition` | İşlem, test, yaklaşım ya da sistem tanımını doğrular ve kaydeder (sürüm kontrollü) |
 | `import_log` | Uygulama logunu (ya da HAR'ı) sunucuda okur ve tanımlı olmayan işlemler için taslak önerir |
+| `check_connection` | Bağlantıyı adım adım sınar (DNS → proxy → TCP → TLS → HTTP) ve nerede koptuğunu söyler |
 | `end_sessions` | Oturumları kapatır ve test müşterilerini başkalarına bırakır |
 
-Login, OTP, 5 dakikalık oturumun yenilenmesi ve zarf alanları sunucuda yapılır; ajan bunlarla uğraşmaz. Aynı müşteriyle paralel login yapılmaz: başka bir pencere, ajan ya da CI o müşteriyi kullanıyorsa sunucu bunu söyler. Maskeleme, prod engeli ve denetim logu her çağrıda geçerlidir.
+Login, OTP, 5 dakikalık oturumun yenilenmesi ve zarf alanları sunucuda yapılır; ajan bunlarla uğraşmaz. Ama gizlenmez: her adım sonuçta görünür (aşağıda "Şeffaflık"). Aynı müşteriyle paralel login yapılmaz: başka bir pencere, ajan ya da CI o müşteriyi kullanıyorsa sunucu bunu söyler. Prod engeli ve denetim logu her çağrıda geçerlidir.
 
-Uzman kullanım için `STM_TOOLSET=uzman` ham SOAP/REST, profil ve YAML senaryo araçlarını da açar (toplam 23 araç).
+## Şeffaflık: kara kutu değil, cam kutu
+
+HTTP çağrısı yapan her araç sonucunda üç alan gelir:
+
+| Alan | İçerik |
+|---|---|
+| `akis` | Her HTTP alışverişi için bir satır: hangi adım (`giriş 2/4`, `test`, `çıkış`), metod, tam URL, HTTP durumu ya da hatanın aşaması, süre, iş sonucu, yanıttan alınan oturum değerleri |
+| `iz` | Gönderilen isteğin tamamı (URL, oturumun eklediği başlıklar dahil tüm başlıklar, gövde, zaman aşımı, proxy, TLS ayarı) ve gelen yanıtın tamamı (durum, başlıklar, gövde, yönlendirmeler). Uzun gövdeler `STM_IZ_GOVDE` karakterde (varsayılan 4000) kısaltılır. |
+| `iz_dosyasi` | Kısaltılmamış izin JSON dosyası: `%USERPROFILE%\.service-test-mcp\izler\` (son 200 dosya tutulur; `STM_IZ_DIR`) |
+
+Örnek `akis`:
+
+```
+1) [giriş 1/4] POST https://.../AuthenticationService.svc/LoginForMobileBranch -> HTTP 200, 412 ms, iş sonucu: başarılı, alınan: oturum.SessionKey
+2) [giriş 2/4] POST https://.../AuthenticationService.svc/InitialLogin -> HATA: bağlantı kuruldu, istek gitti; sunucu 30 sn içinde yanıt vermedi [ReadTimeout], 30004 ms
+```
+
+Hata olduğunda sonuçta hatanın türü (`tur`), aşaması (`asama`: DNS, TCP bağlantısı, TLS, proxy, yanıt beklerken ...), tam neden zinciri (`zincir`) ve olası nedenler (`olasi_nedenler`) yer alır. Sunucunun kendi kodunda beklenmeyen bir hata olursa hatanın oluştuğu dosya ve satırlar (`konum`) da döner. Zaman aşımı ya da bağlantı hatasında `check_connection` yolu adım adım sınar.
+
+**Gizli değerler:** Varsayılan mod `STM_SEFFAF=seffaf`: yalnızca kimlik bilgileri (şifreler, OTP, `gizli.yaml` ve `STM_SECRET_...` değerleri) `«gizli: ad»` etiketiyle gösterilir; müşteri no, IBAN, SessionKey, tutarlar gibi her şey olduğu gibi görünür. `STM_GIZLILERI_GOSTER=1` kimlik bilgilerini de açık gösterir (yalnızca kendi bilgisayarınızda öğrenme amaçlı). `STM_SEFFAF=maskeli` eski davranışı (kişisel veri maskeleme) geri getirir. Denetim logu her modda maskelidir.
+
+**Bağlantı ayarları** sistem tanımında ortam başına yazılır:
+
+```yaml
+ortamlar:
+  prep:
+    adres: https://mobileprep.kuveytturk.com.tr/BOA.Integration.MobileBranch
+    zaman_asimi_sn: 60                       # varsayılan 30
+    proxy: http://proxy.sirket.local:8080    # 'yok' = HTTPS_PROXY ortam değişkenini kullanma
+    tls_dogrula: C:\kurum\kurum-ca.pem       # true / false / kurum CA dosyası
+```
+
+Uzman kullanım için `STM_TOOLSET=uzman` ham SOAP/REST, profil ve YAML senaryo araçlarını da açar (toplam 24 araç).
 
 ## Deterministik kontrol ve AI yorumu
 
@@ -148,7 +181,7 @@ set STM_AGENT_MODEL=kurum-modeli
 service-test-agent --prompt "Hesap hareketlerini sınır değer yaklaşımıyla tara, 12345678 ile prep'te" --output rapor.md
 ```
 
-Varsayılan olarak modele yalnızca 7 araç verilir; küçük modeller için de uygundur. Model sunucusunda tool calling açık olmalıdır.
+Varsayılan olarak modele yalnızca 8 araç verilir; küçük modeller için de uygundur. Model sunucusunda tool calling açık olmalıdır.
 
 AI olmadan (CI, zamanlanmış koşu):
 ```bat

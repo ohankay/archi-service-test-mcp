@@ -31,7 +31,13 @@ SISTEM: dict[str, Any] = {
             "type": "object", "additionalProperties": False, "required": ["adres"],
             "properties": {"adres": _STR, "aciklama": _STR, "degiskenler": _MAP,
                            "degistirmeye_izin": {"type": "boolean", "description": "para transferi gibi işlemler"},
-                           "varsayilan_musteri": {"type": ["string", "integer"]}}}},
+                           "varsayilan_musteri": {"type": ["string", "integer"]},
+                           "zaman_asimi_sn": {"type": "number", "minimum": 1,
+                                              "description": "yanıt için en fazla bekleme (varsayılan 30)"},
+                           "proxy": {**_STR, "description": "ör. http://proxy.sirket.local:8080; 'yok' = "
+                                     "HTTPS_PROXY gibi ayarları kullanma"},
+                           "tls_dogrula": {"type": ["boolean", "string"],
+                                           "description": "true / false / kurum CA dosyası (.pem) yolu"}}}},
         "degiskenler": {**_MAP, "description": "Tüm ortamlarda ortak değişkenler ({{ortam.x}})"},
         "istek": {"type": "object", "additionalProperties": False, "properties": {
             "metod": _STR, "adres_kalibi": _STR, "zarf": _MAP, "oturum_zarfi": _MAP, "basliklar": _MAP}},

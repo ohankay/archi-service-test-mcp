@@ -11,6 +11,7 @@ Templates in definitions use Turkish names; they are mapped to the engine's:
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -78,8 +79,14 @@ def sistem_derle(depo: Depo, kayit: Kayit) -> tuple[ServiceConfig, dict[str, Env
         environments[name] = ProfileEnvironment(variables=sablon({**ortak, **(ortam.get("degiskenler") or {})}),
                                                 default_customer=str(ortam["varsayilan_musteri"])
                                                 if ortam.get("varsayilan_musteri") is not None else None)
+        proxy = ortam.get("proxy")
+        if isinstance(proxy, str) and proxy.strip().lower() in ("yok", "hayır", "hayir", "none", "direct"):
+            proxy = "none"
         envs[name] = EnvironmentConfig(name=name, description=str(ortam.get("aciklama") or ""),
-                                       allow_mutating=bool(ortam.get("degistirmeye_izin", True)))
+                                       allow_mutating=bool(ortam.get("degistirmeye_izin", True)),
+                                       timeout_s=float(ortam.get("zaman_asimi_sn") or 30),
+                                       proxy=str(proxy) if proxy else None,
+                                       verify_tls=_tls(ortam.get("tls_dogrula", True)))
         base_urls[name] = str(ortam["adres"]).rstrip("/")
     log = v.get("log_alanlari") or {}
     profile = Profile(
@@ -112,3 +119,15 @@ def sistem_derle(depo: Depo, kayit: Kayit) -> tuple[ServiceConfig, dict[str, Env
     service = ServiceConfig(name=kayit.ad, protocol="rest", description=str(v.get("aciklama") or ""),
                             base_url=base_urls)
     return service, envs, profile
+
+
+def _tls(value: Any) -> bool | str:
+    """true / false, or the path of a CA bundle (.pem); 'evet'/'hayır' accepted too."""
+    if isinstance(value, str):
+        low = value.strip().lower()
+        if low in ("false", "hayır", "hayir", "yok", "0"):
+            return False
+        if low in ("true", "evet", "1", ""):
+            return True
+        return os.path.expanduser(os.path.expandvars(value.strip()))
+    return bool(value)

@@ -11,6 +11,7 @@ import threading
 import weakref
 from typing import Any
 
+from . import iz
 from .audit import AuditLog
 from .config import PRODUCTION_NAMES, ConfigError, EnvironmentConfig, ServiceConfig, Settings, home_dir, load_settings
 from .masking import Masker
@@ -59,10 +60,10 @@ class Engine:
         for svc in settings.services.values():
             for auth in [svc.auth, *svc.auth_overrides.values()]:
                 for name in auth.secret_env_names():
-                    self.masker.add_secret(os.environ.get(name))
+                    self.masker.add_secret(os.environ.get(name), name, credential=True)
         for name, value in os.environ.items():
             if name.startswith("STM_SECRET_"):
-                self.masker.add_secret(value)
+                self.masker.add_secret(value, name[len("STM_SECRET_"):].lower(), credential=True)
         self.leases = FileLeaseStore(os.environ.get("STM_LOCKS_DIR") or settings.locks.dir or home_dir() / "locks")
         self.profiles: dict[str, ProfileRuntime] = {}
         for svc in list(settings.services.values()):
@@ -77,8 +78,8 @@ class Engine:
                 del settings.services[svc.name]
         self._gizli = gizli.oku()
         for values in self._gizli.values():
-            for value in values.values():
-                self.masker.add_secret(str(value))
+            for key, value in values.items():
+                self.masker.add_secret(str(value), str(key), credential=True)
         self._load_definitions()
         _ENGINES.add(self)
 
@@ -136,8 +137,8 @@ class Engine:
     def reload_secrets(self) -> None:
         self._gizli = gizli.oku()
         for values in self._gizli.values():
-            for value in values.values():
-                self.masker.add_secret(str(value))
+            for key, value in values.items():
+                self.masker.add_secret(str(value), str(key), credential=True)
 
     def secrets(self, environment: str) -> dict[str, Any]:
         return gizli.ortam_icin(getattr(self, "_gizli", {}), environment)
@@ -220,12 +221,34 @@ class Engine:
         svc, env = self.resolve(service, environment)
         if svc.protocol != "rest":
             raise ConfigError(f"'{svc.name}' is a SOAP service; use soap_call")
-        result = self.rest.call(svc, env, method, path, query, headers, body, body_text, form)
+        try:
+            result = self.rest.call(svc, env, method, path, query, headers, body, body_text, form)
+        except ConfigError as exc:
+            if getattr(exc, "istek", None):
+                iz.ekle({"kaynak": origin, "servis": svc.name, "ortam": env.name, "islem": label,
+                         "istek": exc.istek, "sure_ms": None,
+                         "hata": {"tur": "ConfigError", "asama": f"gönderilmedi: {exc}", "zincir": [str(exc)]}})
+            raise
         self._register_secrets(svc, env)
         if label:
             result["operation"] = label
+        self._trace(result, origin, label)
         self._audit(result, origin, request={"query": query, "body": body if body is not None else body_text})
         return result
+
+    def _trace(self, result: dict[str, Any], origin: str, label: str | None) -> None:
+        """Record the exchange in the active trace (iz) - what really went out and what came back."""
+        kayit: dict[str, Any] = {"kaynak": origin, "servis": result.get("service"),
+                                 "ortam": result.get("environment"), "islem": label,
+                                 "istek": result.get("istek"), "sure_ms": result.get("elapsed_ms")}
+        if result.get("error"):
+            kayit["hata"] = {k: v for k, v in result["error"].items() if k not in ("message", "type")}
+        else:
+            kayit["yanit"] = {"durum": result.get("status"), "neden": result.get("reason"),
+                              "basliklar": result.get("headers"), "govde": result.get("body")}
+            if result.get("redirects"):
+                kayit["yanit"]["yonlendirmeler"] = result["redirects"]
+        iz.ekle(kayit)
 
     def profile_call(self, service: str, operation: str, params: dict[str, Any] | None = None,
                      test_customer: str | None = None, environment: str | None = None, origin: str = "tool",
@@ -241,7 +264,7 @@ class Engine:
             cached = self.rest._sessions.get((svc.name, env.name))
             secrets = cached[1] if cached else []
         for s in secrets:
-            self.masker.add_secret(s)
+            self.masker.add_secret(s, f"{svc.name} kimlik bilgisi", credential=True)
 
     def _audit(self, result: dict[str, Any], origin: str, request: Any) -> None:
         self.audit.write(origin=origin, protocol=result.get("protocol"), service=result.get("service"),
@@ -249,8 +272,8 @@ class Engine:
                          operation=result.get("operation") or f"{result.get('method')} {result.get('path')}",
                          status=result.get("status"), fault=(result.get("fault") or {}).get("code")
                          if result.get("fault") else None, elapsed_ms=result.get("elapsed_ms"),
-                         request=self.masker.mask(json_ready(request)),
-                         response=self.masker.mask(json_ready(result.get("body"))))
+                         request=self.masker.mask(json_ready(request), kati=True),
+                         response=self.masker.mask(json_ready(result.get("body")), kati=True))
 
     # -- views for the model -------------------------------------------------------------------------------------
     def view(self, obj: Any, limit: int | None = None, mask: bool = True) -> Any:

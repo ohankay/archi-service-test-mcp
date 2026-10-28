@@ -242,7 +242,7 @@ class LogdanTanim:
                     value = ex.request_body.get(kaynak["alan"])
                     if value not in (None, ""):
                         values[ad] = value
-                        self.e.masker.add_secret(str(value))
+                        self.e.masker.add_secret(str(value), ad, credential=True)
                         names.append(ad)
                         break
         if not values:

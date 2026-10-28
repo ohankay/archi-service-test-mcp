@@ -8,7 +8,7 @@ Yeni bir servis için yeni bir MCP yazılmaz. Sistem bir tanım dosyasıdır; i�
 
 | Alan | Ne yazılır |
 |---|---|
-| `ortamlar` | Her ortam için `adres` (işlem yolundan önceki kısım) ve o ortama özgü `degiskenler`. İsteğe bağlı: `varsayilan_musteri`, `degistirmeye_izin`. |
+| `ortamlar` | Her ortam için `adres` (işlem yolundan önceki kısım) ve o ortama özgü `degiskenler`. İsteğe bağlı: `varsayilan_musteri`, `degistirmeye_izin`, bağlantı ayarları `zaman_asimi_sn` (varsayılan 30), `proxy` (`yok` = ortam değişkenindeki proxy'yi kullanma), `tls_dogrula` (true / false / kurum CA .pem yolu). |
 | `degiskenler` | Tüm ortamlarda ortak değerler (`{{ortam.x}}`). |
 | `istek.adres_kalibi` | İşlemin URL'deki yeri. Varsayılan `"{yol}/{metod}"`. |
 | `istek.zarf` | Her istekte gönderilen alanlar. |

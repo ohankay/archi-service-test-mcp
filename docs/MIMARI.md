@@ -10,7 +10,7 @@ Servis katmanı testlerini bir AI ajanının yapabildiği bir platform. Teknik b
 |---|---|---|
 | Kullanıcıya görünen model | Dört kavram: sistem, işlem, yaklaşım, test. Hepsi düz YAML. | `tanim/` paketi, `tanimlar/` klasörü |
 | MCP yapısı | Tek MCP. Yeni servisler ve test yaklaşımları tanım dosyası olarak eklenir. | `tanim/derle.py`: sistem → servis + profil |
-| Araçlar | Varsayılan 7 araç; uzman set (23 araç) isteğe bağlı. | `TEMEL_TOOL_NAMES`, `STM_TOOLSET` |
+| Araçlar | Varsayılan 8 araç; uzman set (24 araç) isteğe bağlı. | `TEMEL_TOOL_NAMES`, `STM_TOOLSET` |
 | Karar mekanizması | Kontroller deterministik, sunucuda değerlendirilir. AI yalnızca yazarken ve yorumlarken devreye girer. | `tanim/kontrol.py`, `ai_yorum` |
 | Bilinmeyen beklenti | `?` sonucu gözlemdir. Kararı insan verir, sonra test deterministik koşar. | `beklenen: ?`, `onay_bekleyen` |
 | Test yaklaşımları | MCP'nin içinde. Kurala dayalılar kodla üretilir; diğerleri kurallarıyla ajana verilir. | `tanim/uretec.py`, `yaklasimlar/*.yaml` |
@@ -20,6 +20,7 @@ Servis katmanı testlerini bir AI ajanının yapabildiği bir platform. Teknik b
 | Log | MCP okur, ajan özet görür. Yalnızca istekler ve akış alınır; yanıtlar alınmaz (bazı loglarda yanıtlar yanlış metoda yazılıyor). | `tanim/logdan.py` |
 | Gizli değerler | Tanım dosyalarına ve repoya girmez. Ortam değişkeni ya da yerel `gizli.yaml`; logdan izinle doldurulur. | `tanim/gizli.py`, `{{gizli.x}}` |
 | Ortamlar | Ortam adresi ve değişkenleri sistem tanımında; testler ortamdan bağımsız. Test ortamlarında engel yok; prod adları reddedilir. | `ortamlar:`, `PRODUCTION_NAMES` |
+| Şeffaflık | Cam kutu: her araç sonucu yaptığı tüm HTTP alışverişlerini (`akis`, `iz`) ve tam iz dosyasını döner; hatalar aşaması, neden zinciri ve olası nedenleriyle gelir. Yalnızca kimlik bilgileri etiketlenir. | `iz.py`, `baglanti.py`, `STM_SEFFAF` |
 | Ajan talimatı | Tek kaynak; Copilot agent dosyası ondan üretilir. | `prompts/service-tester.md` |
 | Arayüz | Aynı dosyaları aynı doğrulamayla düzenleyen ikinci bir istemci; JSON Schema'lar hazır. | `tanim/semalar.py`, `--schemas` |
 
@@ -29,7 +30,8 @@ Servis katmanı testlerini bir AI ajanının yapabildiği bir platform. Teknik b
    VS Code Copilot          bağımsız ajan (kurum içi LLM)          CI (--test, AI'sız)          (ileride) arayüz
           \                          |                                  |                          /
            +------------- MCP araçları: list_tests, run_test, call_operation, generate_tests, -----+
-                                    save_definition, import_log, end_sessions
+                         save_definition, import_log, check_connection, end_sessions
+                         (her sonuçta: akis, iz, iz_dosyasi)
                                                    |
   ┌─────────────────────────────── tanım katmanı (tanim/) ───────────────────────────────────────────┐
   │ depo: yükle, ada göre bul, doğrula (şema + anlam), sürüm kontrollü kaydet                        │
@@ -60,7 +62,7 @@ Servis katmanı testlerini bir AI ajanının yapabildiği bir platform. Teknik b
    - beklenen `başarılı` ise iş başarısı ve kontrol satırları,
    - beklenen `hata` ise iş başarısızlığı,
    - beklenen `?` ise yalnızca gözlem kaydedilir.
-5. Rapor dönülür: geçti, kaldı (kalan kontrol, beklenen ve gerçek değer, maskeli yanıt özeti), gözlem, hata. `ai_yorum` soruları ve veri özeti ajana ayrı bölümde gelir.
+5. Rapor dönülür: geçti, kaldı (kalan kontrol, beklenen ve gerçek değer, yanıt özeti), gözlem, hata. Login dahil her HTTP alışverişi `akis` ve `iz` olarak rapora eklenir. `ai_yorum` soruları ve veri özeti ajana ayrı bölümde gelir.
 
 **Yaklaşımla tarama** ("hesap hareketlerini sınır değerle tara"):
 
