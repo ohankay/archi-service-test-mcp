@@ -47,12 +47,12 @@ Login, OTP, 5 dakikalık oturumun yenilenmesi ve zarf alanları sunucuda yapıl�
 
 ## Şeffaflık: kara kutu değil, cam kutu
 
-HTTP çağrısı yapan her araç sonucunda üç alan gelir:
+Her sonuç `success`, `sonuc` ve bir sorun varsa `sorun` ile başlar: hangi adımda ve neden (ör. `giriş 4/4 (OtpLoginCompleteNew): HTTP 200, iş sonucu başarısız: ...`). HTTP çağrısı yapan her araç sonucunda ayrıca üç alan gelir:
 
 | Alan | İçerik |
 |---|---|
 | `akis` | Her HTTP alışverişi için bir satır: hangi adım (`giriş 2/4`, `test`, `çıkış`), metod, tam URL, HTTP durumu ya da hatanın aşaması, süre, iş sonucu, yanıttan alınan oturum değerleri |
-| `iz` | Gönderilen isteğin tamamı (URL, oturumun eklediği başlıklar dahil tüm başlıklar, gövde, zaman aşımı, proxy, TLS ayarı) ve gelen yanıtın tamamı (durum, başlıklar, gövde, yönlendirmeler). Ajanlar uzun araç sonuçlarını kestiği için yalnızca sorunlu alışverişler (hata, HTTP ≥ 400, iş sonucu başarısız) burada gösterilir; `STM_IZ=hepsi` hepsini gösterir. Uzun gövdeler `STM_IZ_GOVDE` karakterde (varsayılan 2000) kısaltılır. |
+| `iz` | Gönderilen isteğin tamamı (URL, oturumun eklediği başlıklar dahil tüm başlıklar, gövde, zaman aşımı, proxy, TLS ayarı) ve gelen yanıtın tamamı (durum, başlıklar, gövde, yönlendirmeler). Ajanlar uzun araç sonuçlarını kesip dosyaya aktardığı için burada yalnızca sorunlu alışverişler (hata, HTTP ≥ 400, iş sonucu başarısız) başlıksız ve kısaltılmış gövdelerle gösterilir; sonucun tamamı 8000 karakteri (`STM_SONUC_SINIR`) geçmez. `STM_IZ=hepsi` hepsini tam gösterir. |
 | `iz_dosyasi` | Kısaltılmamış izin JSON dosyası: `%USERPROFILE%\.service-test-mcp\izler\` (son 200 dosya tutulur; `STM_IZ_DIR`) |
 
 Örnek `akis`:

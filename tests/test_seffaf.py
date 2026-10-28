@@ -32,7 +32,8 @@ def _run(coro) -> dict:
 
 def test_result_carries_the_whole_flow(seffaf, monkeypatch):
     r = _run(server.run_test("Hesap listeleme", customer="1000001", environment="demo"))
-    assert "iz" not in r and "5 sorunsuz" in r["iz_notu"] and len(r["akis"]) == 5   # short by default
+    assert "iz" not in r and "sorun" not in r and len(r["akis"]) == 5   # short by default
+    assert list(r)[:2] == ["success", "sonuc"] and "/.../AccountService.svc/AccountListByGroup" in r["akis"][4]
     _run(server.end_sessions())
     monkeypatch.setenv("STM_IZ", "hepsi")
     r = _run(server.run_test("Hesap listeleme", customer="1000001", environment="demo"))
@@ -229,3 +230,29 @@ def test_saved_connection_settings_apply_without_restart(tanimlar, demo_port, mo
         server.set_engine(None)
         e.close()
         proxy.close()
+
+
+def test_failed_login_step_is_the_first_thing_in_the_result(tanimlar, demo_port, monkeypatch, tmp_path):
+    from service_test_mcp import demo_mobile as dm
+
+    _point_prep_to(tanimlar, f"http://127.0.0.1:{demo_port}/demo")
+    for name, value in (("UYGULAMA_SIFRESI", dm.APP_PASSWORD), ("UYGULAMA_SIFRESI_2", dm.APP_PASSWORD_2),
+                        ("MUSTERI_SIFRESI", dm.CUSTOMER_PASSWORD), ("OTP", dm.OTP)):
+        monkeypatch.setenv(f"STM_SECRET_{name}", value)
+    monkeypatch.setenv("STM_SEFFAF", "seffaf")
+    monkeypatch.setenv("STM_IZ_DIR", str(tmp_path / "izler"))
+    e = Engine()
+    server.set_engine(e)
+    try:
+        text = asyncio.run(server.run_test("Hesap listeleme", customer="1000002", environment="prep"))
+    finally:
+        server.set_engine(None)
+        e.close()
+    r = json.loads(text)
+    assert list(r)[:3] == ["success", "sonuc", "sorun"] and r["sonuc"] == "kaldı"
+    # the prep user names are not the demo's: the first login step is refused, and that is the first thing said
+    assert r["sorun"] == ("giriş 1/4 (LoginForMobileBranch): HTTP 200, iş sonucu başarısız: APP_LOGIN_FAILED; "
+                          "Uygulama kullanıcısı doğrulanamadı")
+    assert len(r["iz"]) == 1 and "basliklar" not in r["iz"][0]["istek"]
+    assert r["iz"][0]["istek"]["govde"]["ExtUPassword"] == "«gizli: uygulama_sifresi»"
+    assert len(text) < 8000

@@ -129,7 +129,7 @@ def _kisalt(value: Any, limit: int) -> Any:
 def satir(k: dict[str, Any]) -> str:
     istek = k.get("istek") or {}
     yanit = k.get("yanit") or {}
-    url = istek.get("url") or ""
+    url = kisa_adres(istek.get("url") or "")
     head = f"{k.get('no')}) [{k.get('kaynak')}] {istek.get('metod', '')} {url}"
     if k.get("hata"):
         h = k["hata"]
@@ -143,6 +143,52 @@ def satir(k: dict[str, Any]) -> str:
     if k.get("alinan"):
         text += f", alınan: {', '.join(k['alinan'])}"
     return text
+
+
+def kisa_adres(url: str) -> str:
+    """https://host/a/b/c.svc/Method?x -> host/.../c.svc/Method (the full URL is in 'iz' and the trace file)."""
+    m = re.match(r"^\w+://([^/]+)(/[^?]*)?", url)
+    if not m:
+        return url
+    parts = [p for p in (m.group(2) or "").split("/") if p]
+    return m.group(1) + ("/.../" if len(parts) > 2 else "/") + "/".join(parts[-2:])
+
+
+def sorun(kayitlar: list[dict[str, Any]]) -> str | None:
+    """One sentence about the first exchange that went wrong."""
+    for k in kayitlar:
+        if not sorunlu(k):
+            continue
+        where = f"{k.get('kaynak')} ({k.get('islem') or kisa_adres((k.get('istek') or {}).get('url') or '')})"
+        if k.get("hata"):
+            return f"{where}: {k['hata'].get('asama')} [{k['hata'].get('tur')}]"
+        durum = (k.get("yanit") or {}).get("durum")
+        errors = (k.get("is_sonucu") or {}).get("errors") or []
+        return f"{where}: HTTP {durum}" + (f", iş sonucu başarısız: {'; '.join(map(str, errors))[:400]}"
+                                          if (k.get("is_sonucu") or {}).get("success") is False else "")
+    return None
+
+
+def ozet(kayitlar: list[dict[str, Any]], govde: int = 600) -> list[dict[str, Any]]:
+    """The exchanges in short: what was sent and what came back, without headers (they are in the file)."""
+    out = []
+    for k in kayitlar:
+        istek = k.get("istek") or {}
+        o: dict[str, Any] = {"no": k.get("no"), "kaynak": k.get("kaynak"), "islem": k.get("islem"),
+                             "istek": {"url": istek.get("url"), "govde": _kisalt(istek.get("govde"), govde),
+                                       "zaman_asimi_sn": istek.get("zaman_asimi_sn"), "proxy": istek.get("proxy")},
+                             "sure_ms": k.get("sure_ms")}
+        if k.get("yanit"):
+            y = k["yanit"]
+            o["yanit"] = {"durum": y.get("durum"), "govde": _kisalt(y.get("govde"), govde * 2)}
+        if k.get("hata"):
+            h = k["hata"]
+            o["hata"] = {"asama": h.get("asama"), "tur": h.get("tur"), "zincir": (h.get("zincir") or [])[-3:],
+                         "olasi_nedenler": h.get("olasi_nedenler") or []}
+        if k.get("is_sonucu") is not None:
+            o["is_sonucu"] = k["is_sonucu"]
+        out.append(o)
+    return out
 
 
 def sorunlu(k: dict[str, Any]) -> bool:

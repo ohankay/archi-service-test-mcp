@@ -44,6 +44,10 @@ Method:
      gitti; sunucu 30 sn içinde yanıt vermedi [ReadTimeout]`,
    - `iz`: the exact request (URL, headers, body, timeout, proxy, TLS setting) and response (status, headers, body),
    - `iz_dosyasi`: the full trace as a JSON file the user can open in VS Code.
+   Every result starts with `success`, `sonuc` and - when something went wrong - `sorun`: one sentence naming the
+   step and the reason (e.g. `giriş 4/4 (OtpLoginCompleteNew): HTTP 200, iş sonucu başarısız: OTP_INVALID; ...`).
+   Always report `sonuc` and `sorun` first. If your client says a result was too large and saved it to a file,
+   open that file (or `iz_dosyasi`) with your file tools and read it - never answer "could not verify the result".
    When something fails, never answer only "an error occurred". Show: which step (the `akis` line), what was sent
    (the relevant part of `iz`), what came back or the error phase (`asama`), the cause chain (`zincir`) and the
    likely causes (`olasi_nedenler`), then the trace file path. For a timeout or connection error run

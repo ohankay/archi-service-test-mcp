@@ -51,6 +51,7 @@ PowerShell, curl or Invoke-WebRequest for service calls - use these tools.
 - Checks are short lines: başarılı | başarısız | süre < 3 sn | X sayısı >= 1 | X boş değil | X = Y | X eşleşir ^TR |
   X arasında a ve b | X içerir y | hata kodu = KOD | her LISTE için A <= B. Prefer rules over fixed values for data
   that changes (balances, rates, dates).
+- Results start with success, sonuc and 'sorun' (the failing step and why): report these first.
 - Transparency: every result that made HTTP calls has 'akis' (one line per exchange: login step, URL, HTTP status
   or error phase, time, business result), 'iz' (the exact requests and responses) and 'iz_dosyasi' (full trace
   JSON). When something fails, show the user the failing 'akis' line, the error phase ('asama'), the cause chain
@@ -65,7 +66,9 @@ _engine: Engine | None = None
 _engine_lock = threading.Lock()
 _last: dict[str, Any] = {}
 _vars: dict[str, Any] = {}   # session variables saved by 'extract' on soap_call / rest_call
-IZ_LIMIT = int(os.environ.get("STM_IZ_SINIR", "12000"))  # characters of trace returned with a result
+IZ_LIMIT = int(os.environ.get("STM_IZ_SINIR", "4000"))  # characters of trace returned with a result
+# whole tool result; larger ones are moved to a file by the client (VS Code) and agents often do not read it
+SONUC_LIMIT = int(os.environ.get("STM_SONUC_SINIR", "8000"))
 _EXPECTED = (ConfigError, ScenarioError, TemplateError, ValueError, FileNotFoundError, PermissionError)
 READ = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
 CALL = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=True)
@@ -150,19 +153,28 @@ def _with_trace(result: dict[str, Any], kayitlar: list[dict[str, Any]], title: s
     if not kayitlar:
         return result
     e = engine()
+    # the verdict and the first problem first: agents read the start, clients cut or move long results
+    head = {k: result[k] for k in ("success", "sonuc") if k in result}
+    problem = iz.sorun(kayitlar)
+    if problem:
+        head["sorun"] = problem
+    result = {**head, **result}
     result["akis"] = [iz.satir(k) for k in kayitlar]
-    # agents cut long tool results: details only for the exchanges that went wrong (all with STM_IZ=hepsi);
+    # details only for the exchanges that went wrong, short and without headers (STM_IZ=hepsi: all, in full);
     # the complete trace is always in the file
-    shown = kayitlar if os.environ.get("STM_IZ", "").lower() in ("hepsi", "all") else \
-        [k for k in kayitlar if iz.sorunlu(k)]
+    full = os.environ.get("STM_IZ", "").lower() in ("hepsi", "all")
+    shown = kayitlar if full else [k for k in kayitlar if iz.sorunlu(k)]
     if shown:
-        result["iz"] = e.view(iz.kisa(shown), limit=IZ_LIMIT)
-    if len(shown) < len(kayitlar):
-        result["iz_notu"] = (f"{len(kayitlar) - len(shown)} sorunsuz alışverişin istek/yanıt ayrıntısı iz_dosyasi'nda "
-                             "(burada yalnızca akis satırı var)")
+        result["iz"] = e.view(iz.kisa(shown) if full else iz.ozet(shown), limit=IZ_LIMIT if not full else 60000)
+    if len(shown) < len(kayitlar) or not full:
+        result["iz_notu"] = "Başlıklar ve sorunsuz alışverişlerin istek/yanıtı iz_dosyasi'nda."
     path = iz.dosyaya_yaz(e.view(kayitlar, limit=10_000_000), title)
     if path:
         result["iz_dosyasi"] = path
+    if not full and len(json.dumps(json_ready(result), ensure_ascii=False, default=str)) > SONUC_LIMIT:
+        result.pop("iz", None)
+        result["iz_notu"] = "Sonuç uzun olduğu için istek/yanıt ayrıntısı yalnızca iz_dosyasi'nda."
+        result = e.view(result, limit=SONUC_LIMIT)
     return result
 
 
