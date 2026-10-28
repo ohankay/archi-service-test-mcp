@@ -1,7 +1,7 @@
 ---
 mode: agent
 description: Tarif edilen bir akış için adımlı test yaz ve koş
-tools: ['service-test/*']
+tools: ['archi-service-test/*']
 ---
 Şu akış için bir test hazırla: `${input:akis}`
 

@@ -1,6 +1,6 @@
 ## Servis testleri
 
-- Servis çağrılarında terminal, PowerShell, curl veya `Invoke-WebRequest` KULLANMA; `service-test` MCP araçlarını kullan.
+- Servis çağrılarında terminal, PowerShell, curl veya `Invoke-WebRequest` KULLANMA; `archi-service-test` MCP araçlarını kullan.
 - Önce `list_tests`: tanımlı sistemler, işlemler, testler ve test yaklaşımları. Yalnızca buradaki adları kullan;
   tanımlı olmayan bir şey istenirse bunu söyle ve `import_log` (işlem için) ya da `generate_tests` (test için) öner.
 - Test çalıştırma: `run_test(test, customer, environment)`. Login, OTP ve oturumu sunucu yapar.

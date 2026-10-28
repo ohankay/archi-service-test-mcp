@@ -52,7 +52,7 @@ PowerShell, curl or Invoke-WebRequest for service calls - use these tools.
 - Values shown as *** are masked. Production environments are refused.
 """
 
-mcp = FastMCP("service-test-mcp", instructions=INSTRUCTIONS)
+mcp = FastMCP("archi-service-test", instructions=INSTRUCTIONS)
 _engine: Engine | None = None
 _engine_lock = threading.Lock()
 _last: dict[str, Any] = {}

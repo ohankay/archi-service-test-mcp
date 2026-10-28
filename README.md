@@ -118,7 +118,7 @@ sabit: { MainResourceCode: MOBROTHRBN, AccountType: Cari }
    Ya da elle `install.cmd` çalıştırın. Kurulum yeri `%USERPROFILE%\.service-test-mcp` olur; tanımlar oraya kopyalanır.
 3. `Ctrl+Shift+P` → **MCP: Open User Configuration**:
    ```json
-   { "servers": { "service-test": { "type": "stdio",
+   { "servers": { "archi-service-test": { "type": "stdio",
        "command": "${userHome}\\.service-test-mcp\\Scripts\\service-test-mcp.exe" } } }
    ```
 4. Gizli değerleri yükleyin. Uygulamayı loglama modunda bir kez kullanın, sonra Copilot'a şunu yazın:

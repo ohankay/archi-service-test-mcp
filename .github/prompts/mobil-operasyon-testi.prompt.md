@@ -1,7 +1,7 @@
 ---
 mode: agent
 description: Bir işlemi seçilen test yaklaşımıyla tara ve sonucu raporla
-tools: ['service-test/*']
+tools: ['archi-service-test/*']
 ---
 `${input:islem}` işlemini `${input:yaklasim}` yaklaşımıyla, `${input:musteri}` müşterisiyle `${input:ortam}`
 ortamında test et:

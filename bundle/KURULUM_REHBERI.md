@@ -29,7 +29,7 @@ Not: Kurulum sırasında terminalde bir kez `install.cmd` çalışır. Kurulumda
 > - Kullanıcıdan şifre veya token İSTEME; bunları hiçbir dosyaya, komuta, ortam değişkenine veya `.env` dosyasına YAZMA. Gizli değerler yalnızca `mcp.json` içindeki `${input:...}` girdileriyle VS Code tarafından sorulur.
 > - `services.yaml` içine şifre/token YAZMA; sadece `password_env` / `token_env` / `value_env` ile değişken ADI yazılır.
 > - Prod ortam TANIMLAMA (prod, production, prd, canli, live adları zaten reddedilir).
-> - Kullanıcının mevcut `mcp.json` dosyasındaki diğer sunuculara ve girdilere DOKUNMA; sadece `service-test` sunucusunu ve onun `inputs` girdilerini ekle/güncelle.
+> - Kullanıcının mevcut `mcp.json` dosyasındaki diğer sunuculara ve girdilere DOKUNMA; sadece `archi-service-test` sunucusunu ve onun `inputs` girdilerini ekle/güncelle.
 > - Paketleri elle `pip install` ile KURMA; kurulum yalnızca `install.cmd` ile yapılır.
 > - Komutları VS Code'un varsayılan terminalinde (PowerShell) çalıştır.
 
@@ -88,9 +88,9 @@ Hedef dosya, **kullanıcı düzeyi**: `"$env:APPDATA\Code\User\mcp.json"` (Insid
 
 Kurallar:
 
-- `services.yaml` içindeki **her** `*_env` adı için iki şey ekle: `inputs` dizisine bir `promptString` girdisi (`"password": true`) ve `service-test` sunucusunun `env` bölümüne `"STM_PW_X": "${input:stm-pw-x}"` satırı. Adlar **harfi harfine aynı** olmalı. Şablondaki örnek girdilerden kullanılmayanları sil.
+- `services.yaml` içindeki **her** `*_env` adı için iki şey ekle: `inputs` dizisine bir `promptString` girdisi (`"password": true`) ve `archi-service-test` sunucusunun `env` bölümüne `"STM_PW_X": "${input:stm-pw-x}"` satırı. Adlar **harfi harfine aynı** olmalı. Şablondaki örnek girdilerden kullanılmayanları sil.
 - Senaryolarda veya profilde gizli değer gerekiyorsa adı `STM_SECRET_` ile başlayan bir değişken ekle (`{{secret.STM_SECRET_X}}`); örneğin mobil profilin `STM_SECRET_MOBIL_APP_PASSWORD` değişkeni.
-- **Dosya yoksa:** şablonun tamamıyla oluştur. **Dosya varsa:** `servers` altına yalnızca `"service-test"` anahtarını ekle/güncelle, `inputs` girdilerini aynı `id` yoksa ekle.
+- **Dosya yoksa:** şablonun tamamıyla oluştur. **Dosya varsa:** `servers` altına yalnızca `"archi-service-test"` anahtarını ekle/güncelle, `inputs` girdilerini aynı `id` yoksa ekle.
 - `%USERPROFILE%\.service-test-mcp` dışında bir yere kurulduysa (`STM_INSTALL_HOME`), `command` alanına tam yolu yaz.
 
 Dosyayı yazdıktan sonra geçerli JSON olduğunu kontrol et.
@@ -104,11 +104,11 @@ Kullanıcıya "Servis testleri için hazır bir custom agent ister misin?" diye 
 
 ### Adım 6: Kullanıcıya son adımları söyle
 
-1. `Ctrl+Shift+P` → **MCP: List Servers** → **service-test** → **Start Server**. Güven onayı gelirse **Trust** deyin.
+1. `Ctrl+Shift+P` → **MCP: List Servers** → **archi-service-test** → **Start Server**. Güven onayı gelirse **Trust** deyin.
 2. Şifre/token tanımlandıysa VS Code her birini bir kez soracak ve güvenli depoda saklayacak.
-3. Copilot Chat → **Agent** modu → araç (🔧) simgesinde `service-test` altında 7 araç görünmeli (`list_tests`, `run_test`, `call_operation`, `generate_tests`, `save_definition`, `import_log`, `end_sessions`). Ham SOAP/REST araçları için `mcp.json` içinde `"env": {"STM_TOOLSET": "uzman"}`.
-4. Test için: **"service-test check_service çalıştır"**. Demo için: **"demo/scenarios klasöründeki senaryoları run_test_suite ile koş"**. Mobil servis için: **"tanımlı testleri listele"**, sonra **"Kur bilgisi listeleme testini <müşteri no> ile prep'te çalıştır"**.
-5. Sorun olursa: **MCP: List Servers** → **service-test** → **Show Output**.
+3. Copilot Chat → **Agent** modu → araç (🔧) simgesinde `archi-service-test` altında 7 araç görünmeli (`list_tests`, `run_test`, `call_operation`, `generate_tests`, `save_definition`, `import_log`, `end_sessions`). Ham SOAP/REST araçları için `mcp.json` içinde `"env": {"STM_TOOLSET": "uzman"}`.
+4. Test için: **"archi-service-test ile tanımlı testleri listele"**, sonra **"Kur bilgisi listeleme testini <müşteri no> ile prep'te çalıştır"**. Demo için (demo sunucusu açıkken): **"Kur bilgisi listeleme testini 1000001 ile demo ortamında çalıştır"**.
+5. Sorun olursa: **MCP: List Servers** → **archi-service-test** → **Show Output**.
 
 Kurulum burada biter.
 
@@ -141,4 +141,4 @@ Kurulum burada biter.
 ## Güncelleme ve kaldırma
 
 - **Güncelleme:** Yeni zip'i açın ve `install.cmd`'yi tekrar çalıştırın; `mcp.json` ve `services.yaml` değişmez.
-- **Kaldırma:** `%USERPROFILE%\.service-test-mcp` klasörünü silin ve `mcp.json` içinden `service-test` girdisini kaldırın.
+- **Kaldırma:** `%USERPROFILE%\.service-test-mcp` klasörünü silin ve `mcp.json` içinden `archi-service-test` girdisini kaldırın.

@@ -1,7 +1,7 @@
 ---
 mode: agent
 description: Kalan bir testin nedenini incele
-tools: ['service-test/*']
+tools: ['archi-service-test/*']
 ---
 `${input:test}` testi `${input:musteri}` müşterisiyle kaldı. Nedenini bul:
 

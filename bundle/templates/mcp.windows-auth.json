@@ -1,6 +1,6 @@
 {
   "servers": {
-    "service-test": {
+    "archi-service-test": {
       "type": "stdio",
       "command": "${userHome}\\.service-test-mcp\\Scripts\\service-test-mcp.exe",
       "env": {

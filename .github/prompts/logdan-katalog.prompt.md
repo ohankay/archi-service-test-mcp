@@ -1,7 +1,7 @@
 ---
 mode: agent
 description: Uygulama (veya HAR) logundan yeni işlemleri tanımla
-tools: ['service-test/*']
+tools: ['archi-service-test/*']
 ---
 `${input:log_dosyasi}` log dosyasını değerlendir:
 
