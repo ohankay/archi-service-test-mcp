@@ -238,7 +238,12 @@ def test_default_tools_over_stdio(tmp_path, demo_port):
     env = clean_env(STM_TOOLSET="temel", STM_TANIMLAR=str(tanimlar), STM_HOME=str(tmp_path / "home"))
 
     async def scenario(s):
-        assert {t.name for t in (await s.list_tools()).tools} == set(TEMEL_TOOL_NAMES)
+        tools = (await s.list_tools()).tools
+        assert {t.name for t in tools} == set(TEMEL_TOOL_NAMES)
+        # one copy of each result: no outputSchema / structuredContent (it doubled and escaped every result)
+        assert all(t.outputSchema is None for t in tools)
+        raw = await s.call_tool("list_tests", {})
+        assert raw.structuredContent is None and len(raw.content) == 1
         res = await _call(s, "list_tests")
         assert {t["test"] for t in res["testler"]} == {"Giriş", "Hesap listeleme", "Hesap hareketleri görüntüleme",
                                                        "Kur bilgisi listeleme"}
@@ -262,7 +267,7 @@ def test_default_tools_over_stdio(tmp_path, demo_port):
         assert res["surum"] and "366 gün" in res["icerik"]
         res = await _call(s, "run_test", tags=["duman"], customer="1000001")
         assert res["ozet"] == {"geçti": 3}, res
-        res = await _call(s, "end_sessions")
+        res = await _call(s, "end_sessions", service="archi-service-test")   # the MCP's name means all
         assert res["ended"] and all(x["logged_out"] for x in res["ended"])
     asyncio.run(_session(env, scenario))
 

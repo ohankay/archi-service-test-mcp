@@ -196,7 +196,7 @@ async def _call(fn: Callable[[], Any]) -> str:
 
 
 # -- discovery -------------------------------------------------------------------------------------------------
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, structured_output=False)
 async def list_services(environment: str | None = None) -> str:
     """List configured services (SOAP/REST), environments and the default environment. Start here."""
     def run() -> dict[str, Any]:
@@ -218,7 +218,7 @@ async def list_services(environment: str | None = None) -> str:
     return await _call(run)
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, structured_output=False)
 async def describe_service(service: str, environment: str | None = None) -> str:
     """SOAP: WSDL ports, selected address and operation names. REST: base_url and OpenAPI operations (if configured)."""
     def run() -> dict[str, Any]:
@@ -237,7 +237,7 @@ async def describe_service(service: str, environment: str | None = None) -> str:
     return await _call(run)
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, structured_output=False)
 async def describe_operation(service: str, operation: str, environment: str | None = None) -> str:
     """Input/output schema of an operation. Profile services: catalog entry (params example, request/response schema,
     kind, session). SOAP: operation name -> input_schema, example_params, output_schema.
@@ -257,7 +257,7 @@ async def describe_operation(service: str, operation: str, environment: str | No
     return await _call(run)
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, structured_output=False)
 async def check_service(service: str | None = None, environment: str | None = None) -> str:
     """Connectivity check without calling an operation: SOAP loads the WSDL and binds the port; REST requests base_url.
     Without 'service' every service is checked."""
@@ -288,7 +288,7 @@ async def check_service(service: str | None = None, environment: str | None = No
 
 
 # -- calls -----------------------------------------------------------------------------------------------------
-@mcp.tool(annotations=CALL)
+@mcp.tool(annotations=CALL, structured_output=False)
 async def soap_call(service: str, operation: str, params: dict[str, Any] | None = None,
                     environment: str | None = None, extract: dict[str, str] | None = None,
                     include_raw: bool = False) -> str:
@@ -306,7 +306,7 @@ async def soap_call(service: str, operation: str, params: dict[str, Any] | None 
     return await _call(run)
 
 
-@mcp.tool(annotations=CALL)
+@mcp.tool(annotations=CALL, structured_output=False)
 async def rest_call(service: str, method: str, path: str, query: dict[str, Any] | None = None,
                     headers: dict[str, Any] | None = None, body: Any = None, body_text: str | None = None,
                     environment: str | None = None, extract: dict[str, str] | None = None,
@@ -326,7 +326,7 @@ async def rest_call(service: str, method: str, path: str, query: dict[str, Any] 
     return await _call(run)
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, structured_output=False)
 async def list_operations(service: str, search: str | None = None, kind: str | None = None,
                           tag: str | None = None) -> str:
     """Operations in the catalog of a profile service (name, kind read/mutating/auth/unknown, needs session,
@@ -345,7 +345,7 @@ async def list_operations(service: str, search: str | None = None, kind: str | N
     return await _call(run)
 
 
-@mcp.tool(annotations=CALL)
+@mcp.tool(annotations=CALL, structured_output=False)
 async def call_profile_operation(service: str, operation: str, params: dict[str, Any] | None = None,
                          test_customer: str | None = None, environment: str | None = None,
                          extract: dict[str, str] | None = None, assertions: list[dict[str, Any]] | None = None,
@@ -374,7 +374,7 @@ async def call_profile_operation(service: str, operation: str, params: dict[str,
     return await _call(run)
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, structured_output=False)
 async def list_test_customers(service: str, environment: str | None = None) -> str:
     """Test customers of a profile service in an environment, the live sessions of this server and
     test_customers busy elsewhere (another VS Code window, agent or CI holds the login)."""
@@ -386,7 +386,7 @@ async def list_test_customers(service: str, environment: str | None = None) -> s
     return await _call(run)
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, structured_output=False)
 async def check_connection(system: str | None = None, environment: str | None = None) -> str:
     """Connection diagnosis when a call times out or cannot connect. Tries every way to the address - the way the MCP
     uses now, direct, and the proxy Windows / the browser would use (PAC) - each step by step (DNS, TCP, TLS, one HTTP
@@ -404,14 +404,16 @@ async def check_connection(system: str | None = None, environment: str | None = 
     return await _call(run)
 
 
-@mcp.tool(annotations=CALL)
+@mcp.tool(annotations=CALL, structured_output=False)
 async def end_sessions(service: str | None = None, environment: str | None = None,
                        customer: str | None = None) -> str:
     """Log out and free the test customers so others (another window, agent, CI) can use them. Without arguments:
-    every session of this server. Call it when the testing is done."""
+    every session of this server. Call it when the testing is done. service: a system name from list_tests
+    (e.g. "Mobil Bankacılık") - not the MCP server's name; leave it empty for all."""
     def run() -> dict[str, Any]:
         e = engine()
-        names = [e.profile(service).service] if service else list(e.profiles)
+        everything = not service or service.strip().lower() in (mcp.name.lower(), "hepsi", "all", "*")
+        names = list(e.profiles) if everything else [e.profile(service).service]
         ended = []
         for name in names:
             ended += [{"service": name, **x} for x in e.profiles[name].end_sessions(environment, customer)]
@@ -440,7 +442,7 @@ def _ozet_islem(k: Any) -> dict[str, Any]:
     return out
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, structured_output=False)
 async def list_tests(kind: str | None = None, name: str | None = None, search: str | None = None) -> str:
     """What is defined: systems (environments), operations (işlemler) with inputs, tests and test approaches.
     kind = sistem | islem | test | yaklasim narrows the list; with name you get that whole definition (YAML) and its
@@ -487,7 +489,7 @@ async def list_tests(kind: str | None = None, name: str | None = None, search: s
     return await _call(run)
 
 
-@mcp.tool(annotations=CALL)
+@mcp.tool(annotations=CALL, structured_output=False)
 async def run_test(test: str | None = None, customer: str | None = None, environment: str | None = None,
                    content: str | None = None, inputs: dict[str, Any] | None = None,
                    tags: list[str] | None = None) -> str:
@@ -515,7 +517,7 @@ async def run_test(test: str | None = None, customer: str | None = None, environ
     return await _call(run)
 
 
-@mcp.tool(annotations=CALL)
+@mcp.tool(annotations=CALL, structured_output=False)
 async def call_operation(operation: str, customer: str | None = None, inputs: dict[str, Any] | None = None,
                          environment: str | None = None, checks: list[str] | None = None) -> str:
     """Call one defined operation (işlem) by its name with friendly inputs, e.g.
@@ -549,7 +551,7 @@ async def call_operation(operation: str, customer: str | None = None, inputs: di
     return await _call(run)
 
 
-@mcp.tool(annotations=CALL)
+@mcp.tool(annotations=CALL, structured_output=False)
 async def save_definition(kind: str, content: str, version: str | None = None) -> str:
     """Validate and save a definition. kind = islem | test | yaklasim | sistem; content = the YAML text.
     Problems (unknown operation or input, a check line that does not parse ...) are returned and nothing is saved.
@@ -572,7 +574,7 @@ async def save_definition(kind: str, content: str, version: str | None = None) -
     return await _call(run)
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, structured_output=False)
 async def generate_tests(approach: str, operation: str, common_inputs: dict[str, Any] | None = None) -> str:
     """Make a draft table test for an operation with a test approach (e.g. "sınır değer", "pairwise", "negatif",
     "eşdeğerlik"; list_tests shows them). Rule-based approaches are generated by code from the operation's
@@ -589,7 +591,7 @@ async def generate_tests(approach: str, operation: str, common_inputs: dict[str,
     return await _call(run)
 
 
-@mcp.tool(annotations=CALL)
+@mcp.tool(annotations=CALL, structured_output=False)
 async def import_log(path: str | None = None, content: str | None = None, environment: str | None = None,
                      apply: bool = False, save_secrets: bool = False) -> str:
     """Read a traffic log (mobile app transaction log or HAR) ON THE SERVER and propose draft operations for what is
@@ -602,7 +604,7 @@ async def import_log(path: str | None = None, content: str | None = None, enviro
     return await _call(run)
 
 
-@mcp.tool(annotations=CALL)
+@mcp.tool(annotations=CALL, structured_output=False)
 async def import_traffic_log(path: str | None = None, content: str | None = None, service: str | None = None,
                              environment: str | None = None, apply: bool = False,
                              scenario_path: str | None = None, format: str | None = None) -> str:
@@ -618,7 +620,7 @@ async def import_traffic_log(path: str | None = None, content: str | None = None
     return await _call(run)
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, structured_output=False)
 async def session_variables(clear: bool = False) -> str:
     """Show (masked) or clear the session variables saved by 'extract' on soap_call / rest_call."""
     def run() -> dict[str, Any]:
@@ -629,7 +631,7 @@ async def session_variables(clear: bool = False) -> str:
     return await _call(run)
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, structured_output=False)
 async def check_last_response(assertions: list[dict[str, Any]]) -> str:
     """Evaluate assertions against the last call_operation / soap_call / rest_call response (real values).
     Use it to try assertions before writing them into a scenario file."""
@@ -645,7 +647,7 @@ async def check_last_response(assertions: list[dict[str, Any]]) -> str:
 
 
 # -- scenarios -------------------------------------------------------------------------------------------------
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, structured_output=False)
 async def validate_scenario(path: str | None = None, content: str | None = None) -> str:
     """Validate scenario YAML (a file, a folder, or inline 'content'): structure, services, assertion syntax,
     JSONPath, and variables used before they are defined. Does not call any service."""
@@ -655,7 +657,7 @@ async def validate_scenario(path: str | None = None, content: str | None = None)
     return await _call(run)
 
 
-@mcp.tool(annotations=CALL)
+@mcp.tool(annotations=CALL, structured_output=False)
 async def run_scenario(path: str | None = None, content: str | None = None, environment: str | None = None,
                        variables: dict[str, Any] | None = None, verbosity: str = "failures") -> str:
     """Run one scenario file (or inline YAML 'content'). Steps run in order; extract passes values to later steps.
@@ -666,7 +668,7 @@ async def run_scenario(path: str | None = None, content: str | None = None, envi
     return await _call(run)
 
 
-@mcp.tool(annotations=CALL)
+@mcp.tool(annotations=CALL, structured_output=False)
 async def run_test_suite(path: str, environment: str | None = None, tags: list[str] | None = None,
                          verbosity: str = "summary", junit_path: str | None = None) -> str:
     """Run every scenario under a folder (recursively), optionally only those with one of 'tags'. Returns a summary
@@ -681,7 +683,7 @@ async def run_test_suite(path: str, environment: str | None = None, tags: list[s
     return await _call(run)
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, structured_output=False)
 async def reload_config() -> str:
     """Re-read services.yaml after it was edited (no server restart needed)."""
     def run() -> dict[str, Any]:
