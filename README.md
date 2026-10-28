@@ -62,7 +62,7 @@ HTTP çağrısı yapan her araç sonucunda üç alan gelir:
 2) [giriş 2/4] POST https://.../AuthenticationService.svc/InitialLogin -> HATA: bağlantı kuruldu, istek gitti; sunucu 30 sn içinde yanıt vermedi [ReadTimeout], 30004 ms
 ```
 
-Hata olduğunda sonuçta hatanın türü (`tur`), aşaması (`asama`: DNS, TCP bağlantısı, TLS, proxy, yanıt beklerken ...), tam neden zinciri (`zincir`) ve olası nedenler (`olasi_nedenler`) yer alır. Sunucunun kendi kodunda beklenmeyen bir hata olursa hatanın oluştuğu dosya ve satırlar (`konum`) da döner. Zaman aşımı ya da bağlantı hatasında `check_connection` yolu adım adım sınar.
+Hata olduğunda sonuçta hatanın türü (`tur`), aşaması (`asama`: DNS, TCP bağlantısı, TLS, proxy, yanıt beklerken ...), tam neden zinciri (`zincir`) ve olası nedenler (`olasi_nedenler`) yer alır. Sunucunun kendi kodunda beklenmeyen bir hata olursa hatanın oluştuğu dosya ve satırlar (`konum`) da döner. Zaman aşımı ya da bağlantı hatasında `check_connection` her yolu (şu anki, doğrudan, Windows/tarayıcının seçtiği proxy) adım adım sınar, hangisinin çalıştığını ve sistem tanımına yazılacak satırı söyler.
 
 **Gizli değerler:** Varsayılan mod `STM_SEFFAF=seffaf`: yalnızca kimlik bilgileri (şifreler, OTP, `gizli.yaml` ve `STM_SECRET_...` değerleri) `«gizli: ad»` etiketiyle gösterilir; müşteri no, IBAN, SessionKey, tutarlar gibi her şey olduğu gibi görünür. `STM_GIZLILERI_GOSTER=1` kimlik bilgilerini de açık gösterir (yalnızca kendi bilgisayarınızda öğrenme amaçlı). `STM_SEFFAF=maskeli` eski davranışı (kişisel veri maskeleme) geri getirir. Denetim logu her modda maskelidir.
 
@@ -73,7 +73,7 @@ ortamlar:
   prep:
     adres: https://mobileprep.kuveytturk.com.tr/BOA.Integration.MobileBranch
     zaman_asimi_sn: 60                       # varsayılan 30
-    proxy: http://proxy.sirket.local:8080    # 'yok' = HTTPS_PROXY ortam değişkenini kullanma
+    proxy: otomatik                          # tarayıcı gibi (Windows PAC); ya da http://adres:port; 'yok' = doğrudan
     tls_dogrula: C:\kurum\kurum-ca.pem       # true / false / kurum CA dosyası
 ```
 

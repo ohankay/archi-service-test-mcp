@@ -55,7 +55,8 @@ PowerShell, curl or Invoke-WebRequest for service calls - use these tools.
   or error phase, time, business result), 'iz' (the exact requests and responses) and 'iz_dosyasi' (full trace
   JSON). When something fails, show the user the failing 'akis' line, the error phase ('asama'), the cause chain
   ('zincir') and 'olasi_nedenler' - never only "an error occurred". Timeouts / connection errors -> check_connection.
-- check_connection(system, environment): DNS -> proxy -> TCP -> TLS -> HTTP step by step; says where it breaks.
+- check_connection(system, environment): tries each way to the address (the current one, direct, the proxy Windows /
+  the browser would use) step by step (DNS, TCP, TLS, HTTP); 'yollar' shows which works, 'oneri' what to change.
 - Only credentials are hidden, shown as «gizli: name». Production environments are refused.
 """
 
@@ -367,8 +368,9 @@ async def list_test_customers(service: str, environment: str | None = None) -> s
 
 @mcp.tool(annotations=READ)
 async def check_connection(system: str | None = None, environment: str | None = None) -> str:
-    """Connection diagnosis when a call times out or cannot connect: DNS -> proxy -> TCP -> TLS -> one HTTP request,
-    step by step, with the timings, the proxy and TLS settings in use and where it breaks. Sends no business request
+    """Connection diagnosis when a call times out or cannot connect. Tries every way to the address - the way the MCP
+    uses now, direct, and the proxy Windows / the browser would use (PAC) - each step by step (DNS, TCP, TLS, one HTTP
+    request) with timings. 'yollar' shows which way works, 'oneri' the line to put in the system definition. Sends no business request
     and needs no customer. system: system name (default: all); environment: default environment if omitted."""
     def run() -> dict[str, Any]:
         e = engine()

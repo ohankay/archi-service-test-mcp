@@ -34,8 +34,8 @@ SISTEM: dict[str, Any] = {
                            "varsayilan_musteri": {"type": ["string", "integer"]},
                            "zaman_asimi_sn": {"type": "number", "minimum": 1,
                                               "description": "yanıt için en fazla bekleme (varsayılan 30)"},
-                           "proxy": {**_STR, "description": "ör. http://proxy.sirket.local:8080; 'yok' = "
-                                     "HTTPS_PROXY gibi ayarları kullanma"},
+                           "proxy": {**_STR, "description": "ör. http://proxy.sirket.local:8080; 'yok' = doğrudan "
+                                     "bağlan; 'otomatik' = tarayıcı gibi Windows PAC ayarına göre"},
                            "tls_dogrula": {"type": ["boolean", "string"],
                                            "description": "true / false / kurum CA dosyası (.pem) yolu"}}}},
         "degiskenler": {**_MAP, "description": "Tüm ortamlarda ortak değişkenler ({{ortam.x}})"},

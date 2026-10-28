@@ -164,3 +164,32 @@ def test_trace_is_scoped_to_one_tool_call():
             iz.ekle({"kaynak": "y"})
         assert [k["kaynak"] for k in a] == ["x"] and [k["no"] for k in b] == [1]
     assert iz.son() is None
+
+
+def test_check_connection_tries_direct_when_the_proxy_hangs(tanimlar, demo_port, monkeypatch):
+    proxy = _silent_server()
+    _point_prep_to(tanimlar, f"http://127.0.0.1:{demo_port}/demo", "zaman_asimi_sn: 1\n    ")
+    for key in ("NO_PROXY", "no_proxy", "HTTPS_PROXY", "https_proxy"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("HTTP_PROXY", f"http://127.0.0.1:{proxy.getsockname()[1]}")
+    e = Engine()
+    server.set_engine(e)
+    try:
+        r = _run(server.check_connection("Mobil Bankacılık", "prep"))
+    finally:
+        server.set_engine(None)
+        e.close()
+        proxy.close()
+    s = r["sistemler"][0]
+    assert not r["success"] and s["ayarlar"]["proxy"].startswith("http://127.0.0.1:")
+    assert [y["calisiyor"] for y in s["yollar"]] == [False, True]
+    assert s["yollar"][1]["yol"] == "doğrudan (proxy'siz)" and "proxy: yok" in s["oneri"]
+
+
+def test_proxy_addresses_from_windows_strings():
+    from service_test_mcp.winproxy import proxy_adresleri
+
+    assert proxy_adresleri("ktproxy:8080") == ["http://ktproxy:8080"]
+    assert proxy_adresleri("PROXY a.b:81; DIRECT") == ["http://a.b:81"]
+    assert proxy_adresleri("http=h1:80;https=h2:8443") == ["http://h1:80", "http://h2:8443"]
+    assert proxy_adresleri("DIRECT") == []

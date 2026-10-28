@@ -40,8 +40,20 @@ def build_session(settings: Settings, service: ServiceConfig, env: EnvironmentCo
     secrets: list[str] = []
     session.verify = env.verify_tls
     if env.proxy:
-        if str(env.proxy).lower() in ("none", "off", "direct"):
+        choice = str(env.proxy).strip().lower()
+        if choice in ("none", "off", "direct"):
             session.trust_env = False
+        elif choice in ("auto", "otomatik"):
+            # like the browser: Windows evaluates the PAC script for this address -> a proxy or direct
+            from . import winproxy
+
+            base = service.value_for("base_url", env.name) or ""
+            decision = winproxy.karar(base) if base else None
+            session.stm_proxy_karari = decision  # type: ignore[attr-defined]  # shown by check_connection
+            if decision and decision.get("proxyler"):
+                session.proxies = {"http": decision["proxyler"][0], "https": decision["proxyler"][0]}
+            elif decision and decision.get("yol") == "doğrudan":
+                session.trust_env = False
         else:
             session.proxies = {"http": env.proxy, "https": env.proxy}
     session.headers.update({"User-Agent": "service-test-mcp"})

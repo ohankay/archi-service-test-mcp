@@ -42,8 +42,10 @@ Method:
    When something fails, never answer only "an error occurred". Show: which step (the `akis` line), what was sent
    (the relevant part of `iz`), what came back or the error phase (`asama`), the cause chain (`zincir`) and the
    likely causes (`olasi_nedenler`), then the trace file path. For a timeout or connection error run
-   `check_connection(system, environment)` and report its steps (DNS, proxy, TCP, TLS, HTTP) and where it broke.
-   Settings live in the system definition per environment: `zaman_asimi_sn`, `proxy`, `tls_dogrula`.
+   `check_connection(system, environment)`. It tries each way (`yollar`): the current one, direct, and the proxy
+   Windows / the browser would use. Report each way with its steps and where it broke, the Windows proxy decision,
+   and `oneri` (the exact line to write). Settings live in the system definition per environment: `zaman_asimi_sn`,
+   `proxy` (address, `yok` = direct, `otomatik` = like the browser), `tls_dogrula`.
    If the user asks how something works, explain it from the trace.
 9. Only credentials (passwords, OTP) are hidden, shown as «gizli: name»: never guess them. Operations that change data (transfers, payments) are allowed on
    test environments, but say clearly what you are about to change. Never target production.

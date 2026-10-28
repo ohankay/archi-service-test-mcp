@@ -82,6 +82,8 @@ def sistem_derle(depo: Depo, kayit: Kayit) -> tuple[ServiceConfig, dict[str, Env
         proxy = ortam.get("proxy")
         if isinstance(proxy, str) and proxy.strip().lower() in ("yok", "hayır", "hayir", "none", "direct"):
             proxy = "none"
+        elif isinstance(proxy, str) and proxy.strip().lower() in ("otomatik", "auto", "windows"):
+            proxy = "auto"
         envs[name] = EnvironmentConfig(name=name, description=str(ortam.get("aciklama") or ""),
                                        allow_mutating=bool(ortam.get("degistirmeye_izin", True)),
                                        timeout_s=float(ortam.get("zaman_asimi_sn") or 30),
