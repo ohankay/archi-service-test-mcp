@@ -1,0 +1,11 @@
+name: Account listing
+description: The My Accounts screen returns the open accounts with IBAN and balances.
+tags: [smoke, account]
+status: approved
+steps:
+  - operation: Account list
+    checks:
+      - count AccountGroups.Accounts >= 1
+      - AccountGroups.Accounts.IBANNumber matches ^TR\d{24}$
+      - AccountGroups.Accounts.AccountFECCode is not empty
+      - "for each AccountGroups.Accounts: AccountAvailableBalance <= AccountBalance"

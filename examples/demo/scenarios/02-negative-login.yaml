@@ -1,0 +1,23 @@
+id: negative-login
+title: Login with a wrong password must return a SOAP fault
+tags: [negative, account]
+steps:
+  - name: Wrong password
+    service: HesapServisi
+    operation: Login
+    params:
+      kullaniciAdi: "{{env.user}}"
+      sifre: "WrongPassword-{{$random_digits(4)}}"
+    assert:
+      - fault: { code: Client, message_contains: "hatalı" }     # the service's own message
+
+  - name: Balance with an invalid token
+    service: HesapServisi
+    operation: GetBakiye
+    params:
+      token: "invalid-{{$uuid}}"
+      musteriNo: "{{env.customer_no}}"
+    assert:
+      - fault: any
+      - path: $
+        isNull: true

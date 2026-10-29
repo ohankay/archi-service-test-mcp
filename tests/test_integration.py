@@ -113,8 +113,8 @@ def test_demo_scenarios_pass(engine, demo_config, tmp_path):
     out = Runner(engine).run(str(demo_config.parent / "scenarios"), junit_path=str(tmp_path / "j.xml"))
     assert out["summary"]["scenarios"] == 3 and out["summary"]["failed"] == 0, json.dumps(engine.view(out))[:3000]
     assert 'failures="0"' in (tmp_path / "j.xml").read_text("utf-8")
-    tagged = Runner(engine).run(str(demo_config.parent / "scenarios"), tags=["negatif"])
-    assert {r["id"] for r in tagged["results"]} == {"negatif-login", "rest-yetkilendirme"}
+    tagged = Runner(engine).run(str(demo_config.parent / "scenarios"), tags=["negative"])
+    assert {r["id"] for r in tagged["results"]} == {"negative-login", "rest-authorization"}
 
 
 FAILING = """

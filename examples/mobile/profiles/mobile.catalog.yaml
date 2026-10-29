@@ -1,0 +1,387 @@
+# Operation catalog. Written by import_traffic_log; descriptions, kind and tags are kept when it
+# updates an operation, so they can be edited by hand.
+operations:
+  ApplicationPreData:
+    path: Base/BaseService.svc
+    kind: read
+    session: false
+    description: Pre-data when the app opens (minimum version, maintenance state). Needs no session.
+    tags:
+    - acilis
+    request_schema:
+      type: object
+      properties: {}
+      required: []
+    response_schema:
+      type: object
+      properties:
+        Success:
+          type: boolean
+        Results:
+          type: array
+        Value:
+          type: object
+          properties:
+            MinVersion:
+              type: string
+            Maintenance:
+              type: boolean
+          required:
+          - Maintenance
+          - MinVersion
+      required:
+      - Results
+      - Success
+      - Value
+    seen:
+      samples: 1
+      environments:
+      - prep
+      last_imported: '2026-10-27'
+      sources:
+      - sample-prep-transaction.log
+  ExecuteMoneyTransfer:
+    path: MoneyTransfer/MoneyTransferService.svc
+    kind: mutating
+    session: true
+    description: Money transfer to an IBAN. Amount <= 0 gives INVALID_AMOUNT, too little balance INSUFFICIENT_BALANCE.
+    tags:
+    - transfer
+    params:
+      ToIban: '{{env.target_iban}}'
+      Amount: '25.50'
+      Description: kira
+      TransferType: 1
+    request_schema:
+      type: object
+      properties:
+        ToIban:
+          type: string
+        Amount:
+          type: string
+        Description:
+          type: string
+        TransferType:
+          type: integer
+      required:
+      - Amount
+      - Description
+      - ToIban
+      - TransferType
+    response_schema:
+      type: object
+      properties:
+        Success:
+          type: boolean
+        Results:
+          type: array
+        Value:
+          type: object
+          properties:
+            TransactionId:
+              type: string
+            Amount:
+              type: number
+            NewBalance:
+              type: number
+          required:
+          - Amount
+          - NewBalance
+          - TransactionId
+      required:
+      - Results
+      - Success
+      - Value
+    seen:
+      samples: 1
+      environments:
+      - prep
+      last_imported: '2026-10-27'
+      sources:
+      - sample-prep-transaction.log
+  GetDashBoardMobileInformation:
+    path: DashBoard/DashBoardService.svc
+    kind: read
+    session: true
+    description: 'Home page: customer name and accounts (IBAN, balance).'
+    tags:
+    - dashboard
+    - smoke
+    params:
+      MainResourceCode: DASHBOARD
+    request_schema:
+      type: object
+      properties:
+        MainResourceCode:
+          type: string
+      required:
+      - MainResourceCode
+    response_schema:
+      type: object
+      properties:
+        Success:
+          type: boolean
+        Results:
+          type: array
+        Value:
+          type: object
+          properties:
+            CustomerName:
+              type: string
+            Accounts:
+              type: array
+              items:
+                type: object
+                properties:
+                  AccountNumber:
+                    type: string
+                  Iban:
+                    type: string
+                  Balance:
+                    type: number
+                  CurrencyCode:
+                    type: string
+                required:
+                - AccountNumber
+                - Balance
+                - CurrencyCode
+                - Iban
+          required:
+          - Accounts
+          - CustomerName
+      required:
+      - Results
+      - Success
+      - Value
+    seen:
+      samples: 1
+      environments:
+      - prep
+      last_imported: '2026-10-27'
+      sources:
+      - sample-prep-transaction.log
+  GetProfileBasics:
+    path: Settings/SettingsService.svc
+    kind: read
+    session: true
+    description: Customer profile basics.
+    tags:
+    - profil
+    request_schema:
+      type: object
+      properties: {}
+      required: []
+    response_schema:
+      type: object
+      properties:
+        Success:
+          type: boolean
+        Results:
+          type: array
+        Value:
+          type: object
+          properties:
+            CustomerId:
+              type: integer
+            Name:
+              type: string
+            Email:
+              type: string
+          required:
+          - CustomerId
+          - Email
+          - Name
+      required:
+      - Results
+      - Success
+      - Value
+    seen:
+      samples: 1
+      environments:
+      - prep
+      last_imported: '2026-10-27'
+      sources:
+      - sample-prep-transaction.log
+  GetTestCustomer:
+    path: TestData/TestDataService.svc
+    kind: read
+    session: false
+    description: 'Test data service: gives the next test customer (the new_customer test customer uses it).'
+    tags:
+    - test-verisi
+    response_schema:
+      type: object
+      properties:
+        Success:
+          type: boolean
+        Value:
+          type: object
+          properties:
+            CustomerId:
+              type: integer
+            UserId:
+              type: string
+            ActivationToken:
+              type: string
+  InitialLogin:
+    path: Authentication/AuthenticationService.svc
+    kind: auth
+    session: false
+    description: Customer login (CustomerId + activation). Returns a new session key.
+    tags:
+    - login
+    params:
+      CustomerId: '{{test_customer.CustomerId}}'
+    request_schema:
+      type: object
+      properties:
+        CustomerId:
+          type: string
+      required:
+      - CustomerId
+    response_schema:
+      type: object
+      properties:
+        Success:
+          type: boolean
+        Results:
+          type: array
+        SessionKey:
+          type: string
+        SessionId:
+          type: string
+        CustomerId:
+          type: integer
+        AuthenticationToken:
+          type: string
+        IsCustomerPrivate:
+          type: boolean
+      required:
+      - AuthenticationToken
+      - CustomerId
+      - IsCustomerPrivate
+      - Results
+      - SessionId
+      - SessionKey
+      - Success
+    seen:
+      samples: 1
+      environments:
+      - prep
+      last_imported: '2026-10-27'
+      sources:
+      - sample-prep-transaction.log
+  LoginForMobileBranch:
+    path: Authentication/AuthenticationService.svc
+    kind: auth
+    session: false
+    description: App-level login; used by the profile's login steps.
+    tags:
+    - login
+    params:
+      UserId: '{{test_customer.UserId}}'
+    request_schema:
+      type: object
+      properties:
+        UserId:
+          type: string
+      required:
+      - UserId
+    response_schema:
+      type: object
+      properties:
+        Success:
+          type: boolean
+        Results:
+          type: array
+        SessionKey:
+          type: string
+        SessionId:
+          type: string
+        IsCaptchaRequired:
+          type: boolean
+      required:
+      - IsCaptchaRequired
+      - Results
+      - SessionId
+      - SessionKey
+      - Success
+    seen:
+      samples: 1
+      environments:
+      - prep
+      last_imported: '2026-10-27'
+      sources:
+      - sample-prep-transaction.log
+  Logout:
+    path: Authentication/AuthenticationService.svc
+    kind: auth
+    session: true
+    description: Closes the session.
+    tags:
+    - login
+    request_schema:
+      type: object
+      properties: {}
+      required: []
+    response_schema:
+      type: object
+      properties:
+        Success:
+          type: boolean
+        Results:
+          type: array
+      required:
+      - Results
+      - Success
+    seen:
+      samples: 1
+      environments:
+      - prep
+      last_imported: '2026-10-27'
+      sources:
+      - sample-prep-transaction.log
+  OtpLoginCompleteNew:
+    path: Authentication/AuthenticationService.svc
+    kind: auth
+    session: false
+    description: Completes the login with the OTP (fixed OTP on test).
+    tags:
+    - login
+    params:
+      CustomerId: '{{test_customer.CustomerId}}'
+    request_schema:
+      type: object
+      properties:
+        CustomerId:
+          type: string
+      required:
+      - CustomerId
+    response_schema:
+      type: object
+      properties:
+        Success:
+          type: boolean
+        Results:
+          type: array
+        LoginResponse:
+          type: object
+          properties:
+            CustomerName:
+              type: string
+            CustomerId:
+              type: integer
+          required:
+          - CustomerId
+          - CustomerName
+      required:
+      - LoginResponse
+      - Results
+      - Success
+    seen:
+      samples: 1
+      environments:
+      - prep
+      last_imported: '2026-10-27'
+      sources:
+      - sample-prep-transaction.log

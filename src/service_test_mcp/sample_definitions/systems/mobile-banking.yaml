@@ -1,0 +1,137 @@
+# Mobile banking WCF services (webHttpBinding, JSON). A technical person writes this file once; people who write
+# tests do not need to see it. Environments: local demo and the real prep. Secret values (app passwords, the common
+# test password, OTP) are not kept in definition files: STM_SECRET_* environment variables or the local secrets.yaml
+# (import_log save_secrets=true fills it from your own log).
+name: Mobile Banking
+description: WCF services used by the mobile app. Every request is POST <address>/<path>/<method>.
+status: approved
+environments:
+  demo:
+    address: http://127.0.0.1:8899/demo/BOA.Integration.MobileBranch
+    description: Local demo service (service-test-mcp --demo-server)
+    default_customer: 1000001
+    variables:                                 # DEMO values only
+      app_user: MobileTestApp
+      app_password: Demo-App-Pass1
+      customer_user: MobileTestApp
+      app_password_2: Demo-App-Pass2
+      customer_password: Demo-Musteri-1
+      otp: "123456"
+      gsm: "905000000000"
+      user_id: demo-kullanici
+  prep:
+    address: https://mobileprep.kuveytturk.com.tr/BOA.Integration.MobileBranch
+    description: Preprod (the prep environment of the mobile app)
+    # Connection settings (when not written: 30 s, the proxy of the computer, the default certificate authorities):
+    # timeout_s: 60                              # longest wait for a response
+    # proxy: auto                                # like the browser (Windows PAC); or http://address:port; none = direct
+    # verify_tls: C:\company\company-ca.pem      # the company's certificate authority; only on test: false
+    variables:
+      app_user: MobilePublicTest
+      app_password: "{{secret.app_password}}"
+      customer_user: MobilePrivateTest
+      app_password_2: "{{secret.app_password_2}}"
+      customer_password: "{{secret.customer_password}}"
+      otp: "{{secret.otp}}"
+      gsm: "902124440123"
+      user_id: "ot/BmF0Cwx/JITfzMUS30w=="
+      device_id: F83B1E06-74A6-4C71-9DCB-407A8C556E5B
+variables:                                     # shared by all environments
+  device_id: 7D1E7C1E-0000-4000-8000-00000000A001
+  app_name: IOS MobileBranch
+  app_version: 7.2.7
+request:
+  method: POST
+  url_pattern: "{path}/{method}"
+  envelope:                                    # sent with every request (values after the customer login)
+    MethodName: "{{method}}"
+    ExtUSessionKey: "{{session.SessionKey}}"
+    ExtUName: "{{env.customer_user}}"
+    ExtUPassword: "{{env.app_password_2}}"
+    SessionType: 2
+    DeviceId: "{{env.device_id}}"
+    AppName: "{{env.app_name}}"
+    Version: "{{env.app_version}}"
+    DeviceOSName: IOS
+    DeviceOSVersion: 27.0.1
+    DeviceModel: iPhone 15 Pro Max
+    LanguageId: 1
+    ThemeId: 0
+    KcStatus: true
+    IsDeviceRooted: false
+    OperatorName: "--"
+    NetworkConnectionType: ""
+  session_envelope:                            # only while a customer session is open
+    OwnerCustomerId: "{{customer.no}}"
+  headers: {}                                  # open topic: values carried in headers
+success:
+  - Success = true
+error_fields: [Results.ErrorCode, Results.ErrorMessage]
+session:
+  ttl_s: 300
+  refresh_margin_s: 30
+  defaults: {SessionKey: ""}
+  login:
+    - method: LoginForMobileBranch             # app login (the identity before the customer login)
+      path: BOA.Integration.Authentication/AuthenticationService.svc
+      input:
+        ExtUName: "{{env.app_user}}"
+        ExtUPassword: "{{env.app_password}}"
+        SessionType: 1
+        UserId: "{{env.user_id}}"
+        Platform: 3
+        MobileApplicationName: OrganikProd
+      extract: {SessionKey: SessionKey}
+    - method: InitialLogin                     # customer number + the common test password
+      path: BOA.Integration.Authentication/AuthenticationService.svc
+      input:
+        ExtUSessionKey: ""
+        OwnerCustomerId: null                  # null: this field is not sent (the app does not send it here)
+        CustomerId: "{{customer.no}}"
+        Password: "{{env.customer_password}}"
+        GSMNumber: "{{env.gsm}}"
+        LoginType: 2
+        SecurityType: 2
+        IsPinValidate: true
+        ContainsCustomerInfo: true
+        IsSessionWithKeycloak: true
+        IsStsEnable: false
+        IsStsLogin: false
+        IsPwfEnable: false
+        IsMSISDNVerificationRequired: false
+        PwfApplicationName: KTIOS
+        ConfigurationAppName: OrganikProd
+        PlatformId: 3
+        MainResourceCode: MOBRMAINPG
+      extract: {SessionKey: SessionKey}
+    - method: SendSmsOtp
+      path: BOA.Integration.Authentication/AuthenticationService.svc
+      input: {CustomerId: "{{customer.no}}", SmsContentType: 0, MainResourceCode: MOBRMAINPG}
+    - method: OtpLoginCompleteNew              # fixed OTP
+      path: BOA.Integration.Authentication/AuthenticationService.svc
+      input:
+        CustomerId: "{{customer.no}}"
+        Password: "{{env.customer_password}}"
+        GeneratedOtp: "{{env.otp}}"
+        OtpType: 2
+        IsNewMobileMenu: true
+        PlatformId: 3
+        MainResourceCode: MOBRMAINPG
+      extract: {SessionKey: LoginResponse.SessionKey}
+  logout:
+    method: Logout
+    path: BOA.Integration.Authentication/AuthenticationService.svc
+    input: {MainResourceCode: MOBRMORE, MainResourceId: 21637}
+  expired_when:                                # to be updated when the real service's code is known
+    - error code = SESSION_EXPIRED
+customer: {field: "no"}                        # tests run with a customer number: {{customer.no}}
+noise: [InsertClientLog, HasUnreadNotification*, GetCusExpMeasureDefinitions*, GetCrossMarketing*,
+        GetLoginCommunicationList, GetTourParameterList, GetAllCountries, GetKeyCloakToken]
+secret_values:                                 # import_log save_secrets=true copies these into the local secrets.yaml
+  app_password: {method: LoginForMobileBranch, field: ExtUPassword}
+  app_password_2: {method: InitialLogin, field: ExtUPassword}
+  customer_password: {method: InitialLogin, field: Password}
+  otp: {method: OtpLoginCompleteNew, field: GeneratedOtp}
+log_fields:
+  customer: [CustomerId, OwnerCustomerId]
+  secret: [ExtUPassword, Password, GeneratedOtp, UserId]

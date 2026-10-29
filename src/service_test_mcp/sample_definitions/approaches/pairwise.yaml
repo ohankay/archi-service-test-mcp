@@ -1,0 +1,7 @@
+name: Pairwise
+aliases: [pairwise testing, all-pairs, all pairs, ikili kombinasyon, kombinasyon]
+description: Instead of all combinations, every value pair of every two inputs is tried at least once; much coverage with few tests.
+when_to_use: Operations with at least two inputs with a known set of values (options, true/false, a limited number).
+generator: pairwise
+limit: 50
+status: approved

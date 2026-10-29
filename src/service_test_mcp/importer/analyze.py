@@ -434,7 +434,7 @@ class Importer:
         if not steps:
             return None
         stem = re.sub(r"[^A-Za-z0-9]+", "-", Path(source).stem).strip("-").lower() or "log"
-        scenario: dict[str, Any] = {"id": f"{stem}-akis", "title": f"{service}: {source} kaydindan uretilen akis",
+        scenario: dict[str, Any] = {"id": f"{stem}-flow", "title": f"{service}: flow made from the log {source}",
                                     "tags": ["draft", "from-log"], "source_log": source}
         if profile.default_test_customer:
             scenario["test_customer"] = profile.default_test_customer

@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 import requests
 
 from .config import ConfigError, EnvironmentConfig, ServiceConfig, Settings
-from .iz import siniflandir
+from .trace import classify
 from .normalize import parse_json_text
 from .transport import GuardedSession, build_session
 
@@ -85,20 +85,20 @@ class RestAdapter:
         settings = session.merge_environment_settings(prepared.url, {}, None, session.verify, None)
         proxies = settings.get("proxies") or {}
         proxy = proxies.get(urlsplit(prepared.url or url).scheme) or proxies.get("all")
-        result["istek"] = {"metod": method, "url": prepared.url, "basliklar": dict(prepared.headers),
-                           "govde": body if body is not None else (body_text if body_text is not None else form),
-                           "zaman_asimi_sn": timeout, "proxy": proxy or None, "tls_dogrulama": settings.get("verify")}
+        result["request"] = {"method": method, "url": prepared.url, "headers": dict(prepared.headers),
+                             "body": body if body is not None else (body_text if body_text is not None else form),
+                             "timeout_s": timeout, "proxy": proxy or None, "verify_tls": settings.get("verify")}
         started = time.perf_counter()
         try:
             resp = session.send(prepared, timeout=timeout, allow_redirects=True, **settings)
         except ConfigError as exc:
             result["elapsed_ms"] = round((time.perf_counter() - started) * 1000, 1)
-            exc.istek = result["istek"]  # type: ignore[attr-defined]  # traced by the engine, then re-raised
+            exc.request_info = result["request"]  # type: ignore[attr-defined]  # traced by the engine, re-raised
             raise
         except Exception as exc:  # noqa: BLE001 - connection errors are results, not crashes
             result["elapsed_ms"] = round((time.perf_counter() - started) * 1000, 1)
-            detail = siniflandir(exc, prepared.url or url, timeout, proxy)
-            result["error"] = {"type": type(exc).__name__, "message": detail["asama"] + " - " + str(exc)[:1500],
+            detail = classify(exc, prepared.url or url, timeout, proxy)
+            result["error"] = {"type": type(exc).__name__, "message": detail["phase"] + " - " + str(exc)[:1500],
                                **detail}
             return result
         result["elapsed_ms"] = round((time.perf_counter() - started) * 1000, 1)

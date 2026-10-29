@@ -1,0 +1,66 @@
+id: login-balance-account-detail
+title: SOAP login -> SOAP balance -> REST account detail (token chain)
+tags: [smoke, account]
+variables:
+  user: "{{env.user}}"
+steps:
+  - name: Login (SOAP)
+    service: HesapServisi
+    operation: Login
+    params:
+      kullaniciAdi: "{{user}}"
+      sifre: "{{env.demo_password}}"
+    assert:
+      - fault: none
+      - path: $.Basarili
+        equals: true
+      - path: $.Token
+        notEmpty: true
+      - responseTimeMs: { lt: 3000 }
+    extract:
+      token: $.Token
+      customer_no: $.MusteriNo
+
+  - name: Query the balance (SOAP)
+    service: HesapServisi
+    operation: GetBakiye
+    params:
+      token: "{{token}}"
+      musteriNo: "{{customer_no}}"
+    assert:
+      - fault: none
+      - path: $.MusteriNo
+        equals: "{{customer_no}}"
+      - path: $.Hesaplar.Hesap
+        count: { gte: 1 }
+      - path: $.ToplamBakiyeTRY
+        numeric: { gte: 0 }
+      - path: $.Hesaplar.Hesap[*].Iban
+        matches: "^TR\\d{24}$"
+        all: true
+      - path: $.Hesaplar.Hesap[*].DovizKodu
+        in: [TRY, USD, EUR]
+        all: true
+      - path: $.SorguZamani
+        type: datetime
+    extract:
+      try_account_no: "$.Hesaplar.Hesap[?(@.DovizKodu == 'TRY')].HesapNo"
+
+  - name: Account detail (REST, Bearer token)
+    service: HesapApi
+    method: GET
+    path: /hesaplar/{{try_account_no}}
+    headers:
+      Authorization: "Bearer {{token}}"
+    assert:
+      - status: 200
+      - header: Content-Type
+        contains: json
+      - path: $.durum
+        equals: AKTIF
+      - path: $.bakiye
+        numeric: { eq: 1500.50, tolerance: 0.01 }
+      - path: $.hareketler[*].tutar
+        type: number
+        all: true
+      - schema: ../schemas/account-detail.json

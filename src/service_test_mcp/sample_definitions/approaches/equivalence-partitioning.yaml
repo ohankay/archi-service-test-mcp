@@ -1,0 +1,8 @@
+name: Equivalence partitioning
+aliases: [equivalence, equivalence class, equivalence classes, eşdeğerlik, eşdeğerlik sınıfları, eşdeğer]
+description: Values expected to behave the same form a class; one representative of each class is tried.
+when_to_use: Inputs with options, true/false, numbers and dates with ranges.
+generator: equivalence
+expected_outside: error
+limit: 40
+status: approved

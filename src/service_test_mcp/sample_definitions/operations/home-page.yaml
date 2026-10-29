@@ -1,0 +1,10 @@
+name: Home page
+description: The home page information shown after login. Also used to verify that login works.
+method: GetDashBoardMobileInformation
+path: BOA.Integration.MobileBanking.DashBoard/DashBoardService.svc
+kind: read
+session: true
+status: approved
+fixed: {MainResourceCode: MOBRDASHBO, MainResourceId: 22027}
+checks:
+  - duration < 5 s

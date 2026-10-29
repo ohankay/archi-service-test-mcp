@@ -4,7 +4,7 @@
       "type": "stdio",
       "command": "${userHome}\\.service-test-mcp\\Scripts\\service-test-mcp.exe",
       "env": {
-        "STM_CONFIG": "DEMO_KLASORU\\services.yaml"
+        "STM_CONFIG": "DEMO_FOLDER\\services.yaml"
       }
     }
   }

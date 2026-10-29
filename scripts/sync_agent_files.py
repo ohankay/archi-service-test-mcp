@@ -16,8 +16,8 @@ SOURCE = ROOT / "src" / "service_test_mcp" / "prompts" / "service-tester.md"
 TARGETS = (ROOT / ".github" / "agents" / "service-tester.agent.md",
            ROOT / "bundle" / "templates" / "service-tester.agent.md")
 FRONT_MATTER = """---
-description: Servis katmani test uzmani (mobil WCF ve diger servisler) - tanimli islem, test ve yaklasimlarla.
-tools: ['archi-service-test/*', 'edit', 'search']
+description: Service-layer test expert (mobile WCF and other services) - with defined operations, tests and approaches.
+tools: ['archi-service-test/*', 'edit', 'search', 'read']
 ---
 <!-- Generated from src/service_test_mcp/prompts/service-tester.md by scripts/sync_agent_files.py - edit the source. -->
 """

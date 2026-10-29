@@ -6,29 +6,29 @@ default_environment: test
 
 environments:
   test:
-    description: Test ortami (demo)
-    allow_mutating: true           # test ortamlarinda para transferi dahil her sey acik
+    description: Test environment (demo)
+    allow_mutating: true           # on test environments everything is open, money transfers too
     variables:
-      otp: "123456"                # test ortaminda sabit OTP
+      otp: "123456"                # the OTP is fixed on test
   prep:
-    description: Preprod ortami (demo)
+    description: Preprod environment (demo)
     allow_mutating: true
     variables:
       otp: "123456"
 
 services:
-  MobilBankacilik:
+  MobileBanking:
     protocol: rest
-    description: Mobil bankacilik WCF servisleri (webHttpBinding, JSON)
+    description: Mobile banking WCF services (webHttpBinding, JSON)
     base_url:
       test: http://127.0.0.1:8899/test/MobileBranch
       prep: http://127.0.0.1:8899/prep/MobileBranch
-    profile: profiles/mobil.profile.yaml
+    profile: profiles/mobile.profile.yaml
 
 # Test customer leases (one login per test customer at a time). Default: %USERPROFILE%\.service-test-mcp\locks.
 # A shared folder makes leases visible to every machine that uses the same test customers:
 # locks:
-#   dir: \\dosya-sunucusu\qa\service-test-locks
+#   dir: \\file-server\qa\service-test-locks
 #   wait_s: 30
 
 masking:

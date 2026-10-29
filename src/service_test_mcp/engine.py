@@ -11,7 +11,7 @@ import threading
 import weakref
 from typing import Any
 
-from . import iz
+from . import trace
 from .audit import AuditLog
 from .config import PRODUCTION_NAMES, ConfigError, EnvironmentConfig, ServiceConfig, Settings, home_dir, load_settings
 from .masking import Masker
@@ -21,9 +21,9 @@ from .profile.model import Profile
 from .profile.runtime import ProfileRuntime
 from .rest import RestAdapter
 from .soap import SoapAdapter
-from .tanim import gizli
-from .tanim.depo import Depo
-from .tanim.derle import sistem_derle
+from .definitions import secrets as secret_store
+from .definitions.compiler import compile_system
+from .definitions.store import Store
 
 _ENGINES: "weakref.WeakSet[Engine]" = weakref.WeakSet()
 
@@ -76,30 +76,39 @@ class Engine:
             except ConfigError as exc:
                 settings.broken[svc.name] = f"profile: {exc}"
                 del settings.services[svc.name]
-        self._gizli = gizli.oku()
-        for values in self._gizli.values():
-            for key, value in values.items():
-                self.masker.add_secret(str(value), str(key), credential=True)
-        self._tanim_ortamlari: set[str] = set()   # environments that come from tanimlar/ (not services.yaml)
+        self.reload_secrets()
+        self._definition_envs: set[str] = set()   # environments that come from definitions/ (not services.yaml)
+        self._migrate()
         self._load_definitions()
         _ENGINES.add(self)
 
+    def _migrate(self) -> None:
+        """Definitions of an earlier version (tanimlar/, gizli.yaml) are converted once, at the first start."""
+        from .definitions.migrate import migrate
+
+        try:
+            self.migration = migrate()
+        except Exception as exc:  # noqa: BLE001 - never stops the server; the old files stay as they are
+            self.migration = {"migrated": False, "error": f"{type(exc).__name__}: {exc}"}
+        if self.migration.get("secrets", {}).get("written"):
+            self.reload_secrets()
+
     def _load_definitions(self) -> None:
-        """tanimlar/: every 'sistem' becomes a profile service; problems are reported, never fatal."""
+        """definitions/: every 'system' becomes a profile service; problems are reported, never fatal."""
         settings = self.settings
-        self.depo = Depo.yukle()
-        self._tanim_servisleri: set[str] = set()
-        for kayit in self.depo.hepsi("sistem"):
-            if str(kayit.yol) in self.depo.yukleme_hatalari:
-                settings.broken[kayit.ad] = "tanım: " + "; ".join(self.depo.yukleme_hatalari[str(kayit.yol)])
+        self.store = Store.load()
+        self._definition_services: set[str] = set()
+        for record in self.store.all("system"):
+            if str(record.path) in self.store.load_errors:
+                settings.broken[record.name] = "definition: " + "; ".join(self.store.load_errors[str(record.path)])
                 continue
-            if kayit.ad in settings.services:
-                settings.broken[kayit.ad] = "tanım: services.yaml'da aynı adlı bir servis var"
+            if record.name in settings.services:
+                settings.broken[record.name] = "definition: services.yaml has a service with the same name"
                 continue
             try:
-                service, envs, profile = sistem_derle(self.depo, kayit)
+                service, envs, profile = compile_system(self.store, record)
             except Exception as exc:  # noqa: BLE001
-                settings.broken[kayit.ad] = f"tanım: {exc}"
+                settings.broken[record.name] = f"definition: {exc}"
                 continue
             for name, env in envs.items():
                 if str(name).strip().lower() in PRODUCTION_NAMES:
@@ -107,13 +116,13 @@ class Engine:
                 current = settings.environments.get(name)
                 if current is None:
                     settings.environments[name] = env
-                    self._tanim_ortamlari.add(name)
+                    self._definition_envs.add(name)
                 else:
-                    if name in self._tanim_ortamlari:
+                    if name in self._definition_envs:
                         # reload: connection settings from the definition take effect now, not after a restart
-                        baglanti = ("timeout_s", "proxy", "verify_tls")
-                        if any(getattr(current, k) != getattr(env, k) for k in baglanti):
-                            for k in baglanti:
+                        connection = ("timeout_s", "proxy", "verify_tls")
+                        if any(getattr(current, k) != getattr(env, k) for k in connection):
+                            for k in connection:
                                 setattr(current, k, getattr(env, k))
                             self._drop_connections(name)
                         current.description = env.description or current.description
@@ -121,7 +130,7 @@ class Engine:
                         current.allow_mutating = False
             service.environments = [n for n in envs if n in settings.environments]
             settings.services[service.name] = service
-            self._tanim_servisleri.add(service.name)
+            self._definition_services.add(service.name)
             old = self.profiles.get(service.name)
             if old is not None:          # reload: keep the live sessions and leases, swap the definitions
                 old.profile = profile
@@ -132,15 +141,15 @@ class Engine:
                 settings.default_environment = service.environments[0]
 
     def reload_definitions(self) -> None:
-        """After a definition was saved: re-read tanimlar/ without dropping sessions of systems that remain."""
+        """After a definition was saved: re-read definitions/ without dropping sessions of systems that remain."""
         with self._lock:
-            previous = set(getattr(self, "_tanim_servisleri", set()))
+            previous = set(getattr(self, "_definition_services", set()))
             for name in previous:
                 self.settings.services.pop(name, None)
-            for name in [n for n, why in self.settings.broken.items() if why.startswith("tanım:")]:
+            for name in [n for n, why in self.settings.broken.items() if why.startswith("definition:")]:
                 del self.settings.broken[name]
             self._load_definitions()
-            for name in previous - self._tanim_servisleri:
+            for name in previous - self._definition_services:
                 runtime = self.profiles.pop(name, None)
                 if runtime is not None:
                     runtime.close()
@@ -155,13 +164,13 @@ class Engine:
                 rest._sessions.pop(key)[0].close()
 
     def reload_secrets(self) -> None:
-        self._gizli = gizli.oku()
-        for values in self._gizli.values():
+        self._secrets = secret_store.read()
+        for values in self._secrets.values():
             for key, value in values.items():
                 self.masker.add_secret(str(value), str(key), credential=True)
 
     def secrets(self, environment: str) -> dict[str, Any]:
-        return gizli.ortam_icin(getattr(self, "_gizli", {}), environment)
+        return secret_store.for_environment(getattr(self, "_secrets", {}), environment)
 
     def reload(self) -> None:
         with self._lock:
@@ -244,10 +253,10 @@ class Engine:
         try:
             result = self.rest.call(svc, env, method, path, query, headers, body, body_text, form)
         except ConfigError as exc:
-            if getattr(exc, "istek", None):
-                iz.ekle({"kaynak": origin, "servis": svc.name, "ortam": env.name, "islem": label,
-                         "istek": exc.istek, "sure_ms": None,
-                         "hata": {"tur": "ConfigError", "asama": f"gönderilmedi: {exc}", "zincir": [str(exc)]}})
+            if getattr(exc, "request_info", None):
+                trace.add({"origin": origin, "service": svc.name, "environment": env.name, "operation": label,
+                           "request": exc.request_info, "duration_ms": None,
+                           "error": {"kind": "ConfigError", "phase": f"not sent: {exc}", "chain": [str(exc)]}})
             raise
         self._register_secrets(svc, env)
         if label:
@@ -257,18 +266,18 @@ class Engine:
         return result
 
     def _trace(self, result: dict[str, Any], origin: str, label: str | None) -> None:
-        """Record the exchange in the active trace (iz) - what really went out and what came back."""
-        kayit: dict[str, Any] = {"kaynak": origin, "servis": result.get("service"),
-                                 "ortam": result.get("environment"), "islem": label,
-                                 "istek": result.get("istek"), "sure_ms": result.get("elapsed_ms")}
+        """Record the exchange in the active trace - what really went out and what came back."""
+        record: dict[str, Any] = {"origin": origin, "service": result.get("service"),
+                                  "environment": result.get("environment"), "operation": label,
+                                  "request": result.get("request"), "duration_ms": result.get("elapsed_ms")}
         if result.get("error"):
-            kayit["hata"] = {k: v for k, v in result["error"].items() if k not in ("message", "type")}
+            record["error"] = {k: v for k, v in result["error"].items() if k not in ("message", "type")}
         else:
-            kayit["yanit"] = {"durum": result.get("status"), "neden": result.get("reason"),
-                              "basliklar": result.get("headers"), "govde": result.get("body")}
+            record["response"] = {"status": result.get("status"), "reason": result.get("reason"),
+                                  "headers": result.get("headers"), "body": result.get("body")}
             if result.get("redirects"):
-                kayit["yanit"]["yonlendirmeler"] = result["redirects"]
-        iz.ekle(kayit)
+                record["response"]["redirects"] = result["redirects"]
+        trace.add(record)
 
     def profile_call(self, service: str, operation: str, params: dict[str, Any] | None = None,
                      test_customer: str | None = None, environment: str | None = None, origin: str = "tool",
@@ -292,8 +301,8 @@ class Engine:
                          operation=result.get("operation") or f"{result.get('method')} {result.get('path')}",
                          status=result.get("status"), fault=(result.get("fault") or {}).get("code")
                          if result.get("fault") else None, elapsed_ms=result.get("elapsed_ms"),
-                         request=self.masker.mask(json_ready(request), kati=True),
-                         response=self.masker.mask(json_ready(result.get("body")), kati=True))
+                         request=self.masker.mask(json_ready(request), strict=True),
+                         response=self.masker.mask(json_ready(result.get("body")), strict=True))
 
     # -- views for the model -------------------------------------------------------------------------------------
     def view(self, obj: Any, limit: int | None = None, mask: bool = True) -> Any:

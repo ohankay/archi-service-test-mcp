@@ -1,0 +1,6 @@
+name: Login
+description: Logs in with customer number + common password + SMS OTP and opens the home page.
+tags: [smoke, login]
+status: approved
+steps:
+  - operation: Home page

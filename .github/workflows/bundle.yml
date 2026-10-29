@@ -32,7 +32,7 @@ jobs:
               names = outer.namelist()
               if outer.read("archi-service-test-mcp/bundle_arch.txt").decode() != arch:
                   stale.append(f"{arch}: bundle_arch.txt")
-              for f in ("install.cmd", "KURULUM_REHBERI.md"):
+              for f in ("install.cmd", "INSTALL_GUIDE.md"):
                   if norm(outer.read(f"archi-service-test-mcp/{f}")) != norm(pathlib.Path("bundle", f).read_bytes()):
                       stale.append(f"{arch}: {f}")
               whl = next(n for n in names if n.startswith("archi-service-test-mcp/wheelhouse/archi_service_test_mcp-"))

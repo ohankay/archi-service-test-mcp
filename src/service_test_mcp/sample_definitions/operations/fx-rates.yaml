@@ -1,0 +1,8 @@
+name: FX rates
+description: Live currency and gold rates (bid / ask).
+method: GetFXRateList
+path: BOA.Integration.MobileBanking.PreciousMetal/PreciousMetalService.svc
+kind: read
+session: true
+status: approved
+fixed: {MainResourceCode: MOBTLIVEFXRATE, MainResourceId: 21642}

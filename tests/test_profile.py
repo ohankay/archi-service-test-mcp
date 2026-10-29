@@ -15,7 +15,7 @@ from service_test_mcp.profile.runtime import CustomerBusy, ProfileError
 from service_test_mcp.scenario.runner import Runner
 from service_test_mcp.scenario.template import Context
 
-SVC = "MobilBankacilik"
+SVC = "MobileBanking"
 
 
 def test_call_logs_in_once_and_reuses_the_session(mobile):
@@ -23,7 +23,7 @@ def test_call_logs_in_once_and_reuses_the_session(mobile):
     assert pre["business"]["success"] is True and demo_mobile.STATS["app_logins"] == 0
     dash = mobile.profile_call(SVC, "GetDashBoardMobileInformation", {"MainResourceCode": "DASHBOARD"})
     assert dash["business"] == {"success": True}
-    assert dash["body"]["Value"]["CustomerName"] == "Ayşe Yılmaz" and dash["test_customer"] == "bireysel_standart"
+    assert dash["body"]["Value"]["CustomerName"] == "Ayşe Yılmaz" and dash["test_customer"] == "retail_standard"
     mobile.profile_call(SVC, "GetProfileBasics")
     assert demo_mobile.STATS["customer_logins"] == 1               # one login for both calls
     view = mobile.result_view(dash)
@@ -62,7 +62,7 @@ def test_unknown_operation_and_test_customer(mobile):
 
 def test_proactive_refresh_before_the_session_runs_out(mobile):
     mobile.profile_call(SVC, "GetProfileBasics")
-    st = mobile.profiles[SVC].sessions[("test", "bireysel_standart")]
+    st = mobile.profiles[SVC].sessions[("test", "retail_standard")]
     st.created -= 280                                               # 4m40s old: inside the 30 s margin
     mobile.profile_call(SVC, "GetProfileBasics")
     assert st.logins == 2 and demo_mobile.STATS["customer_logins"] == 2
@@ -115,16 +115,16 @@ def test_parallel_login_with_the_same_customer_is_refused(mobile_config):
         with pytest.raises(CustomerBusy, match="parallel logins"):
             b.profile_call(SVC, "GetProfileBasics")
         status = b.profiles[SVC].status("test")
-        assert "bireysel_standart" in status["busy_elsewhere"]
+        assert "retail_standard" in status["busy_elsewhere"]
         # a pool hands out a free customer
-        x = a.profile_call(SVC, "GetProfileBasics", test_customer="bireysel_havuz")
-        y = b.profile_call(SVC, "GetProfileBasics", test_customer="bireysel_havuz")
+        x = a.profile_call(SVC, "GetProfileBasics", test_customer="retail_pool")
+        y = b.profile_call(SVC, "GetProfileBasics", test_customer="retail_pool")
         assert {x["body"]["Value"]["CustomerId"], y["body"]["Value"]["CustomerId"]} == {1000002, 1000003}
         with pytest.raises(CustomerBusy):
-            Engine().profile_call(SVC, "GetProfileBasics", test_customer="bireysel_havuz")
+            Engine().profile_call(SVC, "GetProfileBasics", test_customer="retail_pool")
         assert demo_mobile.STATS["ended_by_parallel_login"] == 0
         # ending the session frees the customer
-        ended = a.profiles[SVC].end_sessions(test_customer="bireysel_standart")
+        ended = a.profiles[SVC].end_sessions(test_customer="retail_standard")
         assert ended[0]["logged_out"] is True
         assert b.profile_call(SVC, "GetProfileBasics")["business"]["success"] is True
     finally:
@@ -136,22 +136,22 @@ def test_same_customer_under_two_test_customer_names_in_one_process(mobile):
     test_customers = mobile.profiles[SVC].profile.environment("test").test_customers
     from service_test_mcp.profile.model import CustomerSpec
 
-    first = dict(test_customers["bireysel_standart"].pool[0])
+    first = dict(test_customers["retail_standard"].pool[0])
     test_customers["takma_ad"] = CustomerSpec(name="takma_ad", pool=[first])
-    mobile.profile_call(SVC, "GetProfileBasics", test_customer="bireysel_standart")
+    mobile.profile_call(SVC, "GetProfileBasics", test_customer="retail_standard")
     with pytest.raises(CustomerBusy, match="this process"):
         mobile.profile_call(SVC, "GetProfileBasics", test_customer="takma_ad")
 
 
 def test_api_sourced_test_customer(mobile):
-    res = mobile.profile_call(SVC, "GetProfileBasics", test_customer="yeni_musteri")
+    res = mobile.profile_call(SVC, "GetProfileBasics", test_customer="new_customer")
     assert res["business"]["success"] is True and res["body"]["Value"]["CustomerId"] == 3000001
-    assert mobile.profiles[SVC].test_customer_values("test", "yeni_musteri")["CustomerId"] == 3000001
+    assert mobile.profiles[SVC].test_customer_values("test", "new_customer")["CustomerId"] == 3000001
 
 
 def test_lost_lease_means_new_login(mobile):
     mobile.profile_call(SVC, "GetProfileBasics")
-    st = mobile.profiles[SVC].sessions[("test", "bireysel_standart")]
+    st = mobile.profiles[SVC].sessions[("test", "retail_standard")]
     mobile.leases.release(st.lease_key, mobile.owner)               # e.g. expired during a long pause
     mobile.profile_call(SVC, "GetProfileBasics")
     assert demo_mobile.STATS["customer_logins"] == 2
@@ -203,18 +203,18 @@ def test_example_scenarios_run_on_both_environments(mobile):
     for env in ("test", "prep"):
         out = Runner(mobile).run(str(root), environment=env, verbosity="failures")
         assert out["summary"]["failed"] == 0, out
-        assert out["summary"]["scenarios"] == 3                     # _taslak-* drafts are not run
+        assert out["summary"]["scenarios"] == 3                     # _draft-* drafts are not run
     steps = out["results"][1]["steps"]
     assert steps[2]["status"] == "passed" and steps[2].get("business", {}).get("success") is not True
 
 
 def test_scenario_validation_accepts_profile_steps(mobile):
     runner = Runner(mobile)
-    ok = runner.validate(content="id: x\ntest_customer: p\nsteps:\n  - service: MobilBankacilik\n"
+    ok = runner.validate(content="id: x\ntest_customer: p\nsteps:\n  - service: MobileBanking\n"
                                  "    operation: Logout\n    params: { A: '{{test_customer.CustomerId}}' }\n"
                                  "    assert: [ { success: true } ]\n")
     assert ok["valid"] is True, ok
-    bad = runner.validate(content="id: x\nsteps:\n  - service: MobilBankacilik\n    method: GET\n    path: /x\n")
+    bad = runner.validate(content="id: x\nsteps:\n  - service: MobileBanking\n    method: GET\n    path: /x\n")
     assert bad["valid"] is False and "profile step needs 'operation'" in " ".join(bad["problems"])
 
 

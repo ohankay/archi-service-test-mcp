@@ -1,0 +1,8 @@
+name: Negative tests
+aliases: [negative, negative testing, invalid input, required field, negatif, negatif testler, hatalı girdi]
+description: Required inputs are left out, wrong types are sent to number and date fields; the service must refuse with a meaningful error.
+when_to_use: Operations with required or typed inputs.
+generator: negative
+expected_outside: error
+limit: 30
+status: approved

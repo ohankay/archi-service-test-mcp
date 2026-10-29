@@ -1,0 +1,38 @@
+id: rest-authorization
+title: REST token and unauthorized access checks
+tags: [smoke, negative, rest]
+steps:
+  - name: Get a token
+    service: HesapApi
+    method: POST
+    path: /auth/token
+    body:
+      username: "{{env.user}}"
+      password: "{{env.demo_password}}"
+    assert:
+      - status: 200
+      - path: $.token_type
+        equals: Bearer
+      - path: $.expires_in
+        numeric: { gt: 0 }
+    extract:
+      access_token: $.access_token
+
+  - name: Without a token -> 401
+    service: HesapApi
+    method: GET
+    path: /hesaplar/1000001-1
+    assert:
+      - status: 401
+      - path: $.error
+        equals: unauthorized
+
+  - name: Unknown account -> 404
+    service: HesapApi
+    method: GET
+    path: /hesaplar/9999999-9
+    headers: { Authorization: "Bearer {{access_token}}" }
+    assert:
+      - status: 404
+      - path: $.message
+        contains: bulunamadı                                    # the service's own message

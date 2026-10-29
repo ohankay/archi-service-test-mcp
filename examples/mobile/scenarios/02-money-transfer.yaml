@@ -1,0 +1,41 @@
+id: mobile-money-transfer
+title: Money transfer to an IBAN and an invalid amount (negative)
+tags: [transfer, mobile]
+test_customer: retail_pool            # tests that change balances use a customer from the pool
+steps:
+  - name: Balance before the transfer
+    service: MobileBanking
+    operation: GetDashBoardMobileInformation
+    params: { MainResourceCode: DASHBOARD }
+    assert:
+      - success: true
+    extract:
+      balance_before: $.Value.Accounts[0].Balance
+
+  - name: Money transfer
+    service: MobileBanking
+    operation: ExecuteMoneyTransfer
+    params:
+      ToIban: "{{env.target_iban}}"
+      Amount: "10.00"
+      Description: automated test
+      TransferType: 1
+    assert:
+      - success: true
+      - path: $.Value.TransactionId
+        matches: "^TRX[0-9A-F]{10}$"
+      - path: $.Value.NewBalance
+        numeric: { lt: "{{balance_before}}" }
+
+  - name: A transfer of zero is refused
+    service: MobileBanking
+    operation: ExecuteMoneyTransfer
+    params:
+      ToIban: "{{env.target_iban}}"
+      Amount: "0"
+      Description: negative test
+      TransferType: 1
+    assert:
+      - success: false
+      - path: $.Results[0].ErrorCode
+        equals: INVALID_AMOUNT

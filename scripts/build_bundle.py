@@ -109,7 +109,7 @@ def build(arch: str) -> Path:
         if out.exists():
             out.unlink()
         files: list[tuple[Path, str]] = [
-            (ROOT / "bundle" / "KURULUM_REHBERI.md", "KURULUM_REHBERI.md"),
+            (ROOT / "bundle" / "INSTALL_GUIDE.md", "INSTALL_GUIDE.md"),
             (ROOT / "bundle" / "install.cmd", "install.cmd"),
             (ROOT / "README.md", "README.md"),
             (ROOT / "LICENSE", "LICENSE"),

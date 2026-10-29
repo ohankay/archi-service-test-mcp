@@ -14,9 +14,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-from service_test_mcp.server import TEMEL_TOOL_NAMES, TOOL_NAMES
+from service_test_mcp.server import BASIC_TOOL_NAMES, TOOL_NAMES
 
-from .conftest import clean_env, write_config, write_mobile_config, write_tanimlar
+from .conftest import clean_env, write_config, write_mobile_config, write_definitions
 
 
 async def _session(env, fn):
@@ -57,11 +57,11 @@ def test_stdio_end_to_end(tmp_path, demo_port):
         res = await _call(s, "describe_operation", service="HesapServisi", operation="Login")
         assert res["example_params"] == {"kullaniciAdi": "string", "sifre": "string"}
         res = await _call(s, "soap_call", service="HesapServisi", operation="Login",
-                          params={"kullaniciAdi": "{{env.kullanici}}", "sifre": "{{env.demo_sifre}}"},
-                          extract={"token": "$.Token", "musteriNo": "$.MusteriNo"})
+                          params={"kullaniciAdi": "{{env.user}}", "sifre": "{{env.demo_password}}"},
+                          extract={"token": "$.Token", "customer_no": "$.MusteriNo"})
         assert res["success"] and res["body"]["Token"] == "***" and res["saved_variables"]["token"] == "***"
         res = await _call(s, "soap_call", service="HesapServisi", operation="GetBakiye",
-                          params={"token": "{{token}}", "musteriNo": "{{musteriNo}}"})
+                          params={"token": "{{token}}", "musteriNo": "{{customer_no}}"})
         assert res["success"] is True and res["body"]["Basarili"] is True
         res = await _call(s, "check_last_response", assertions=[
             {"path": "$.Hesaplar.Hesap", "count": 2}, {"path": "$.ToplamBakiyeTRY", "numeric": {"gt": 10000}}])
@@ -89,37 +89,37 @@ def test_stdio_mobile_profile(tmp_path, demo_port):
 
     demo_mobile.reset()
     cfg = write_mobile_config(tmp_path, demo_port)
-    log = cfg.parent / "logs" / "ornek-prep-transaction.log"
+    log = cfg.parent / "logs" / "sample-prep-transaction.log"
 
     async def scenario(s):
         res = await _call(s, "list_services")
         svc = res["services"][0]
         assert svc["call_with"] == "call_profile_operation" and svc["login_steps"][-1] == "OtpLoginCompleteNew"
-        assert "hedef_iban" in res["environments"]["test"]["variables"]
-        res = await _call(s, "list_operations", service="MobilBankacilik", kind="read")
+        assert "target_iban" in res["environments"]["test"]["variables"]
+        res = await _call(s, "list_operations", service="MobileBanking", kind="read")
         assert "GetDashBoardMobileInformation" in {o["operation"] for o in res["operations"]}
-        res = await _call(s, "describe_operation", service="MobilBankacilik", operation="ExecuteMoneyTransfer")
+        res = await _call(s, "describe_operation", service="MobileBanking", operation="ExecuteMoneyTransfer")
         assert res["kind"] == "mutating" and res["allowed_here"] is True and "Amount" in res["params"]
-        res = await _call(s, "call_profile_operation", service="MobilBankacilik",
+        res = await _call(s, "call_profile_operation", service="MobileBanking",
                           operation="GetDashBoardMobileInformation",
                           params={"MainResourceCode": "DASHBOARD"}, extract={"bakiye": "$.Value.Accounts[0].Balance"},
                           assertions=[{"success": True}, {"path": "$.Value.Accounts", "count": 1}])
         assert res["success"] is True and res["assertions_passed"] is True
-        assert res["test_customer"] == "bireysel_standart"
+        assert res["test_customer"] == "retail_standard"
         assert res["body"]["Value"]["Accounts"][0]["Iban"].endswith("1326") and "TR33" not in json.dumps(res)
-        res = await _call(s, "call_profile_operation", service="MobilBankacilik", operation="ExecuteMoneyTransfer",
-                          params={"ToIban": "{{env.hedef_iban}}", "Amount": "1.00", "Description": "e2e",
+        res = await _call(s, "call_profile_operation", service="MobileBanking", operation="ExecuteMoneyTransfer",
+                          params={"ToIban": "{{env.target_iban}}", "Amount": "1.00", "Description": "e2e",
                                   "TransferType": 1})
         assert res["success"] is True and res["business"] == {"success": True}
-        res = await _call(s, "list_test_customers", service="MobilBankacilik", environment="test")
-        assert res["sessions"][0]["test_customer"] == "bireysel_standart" and res["sessions"][0]["logins"] == 1
+        res = await _call(s, "list_test_customers", service="MobileBanking", environment="test")
+        assert res["sessions"][0]["test_customer"] == "retail_standard" and res["sessions"][0]["logins"] == 1
         res = await _call(s, "import_traffic_log", path=str(log))
         assert res["applied"] is False and res["services"][0]["summary"] == {"unchanged": 8}
         assert demo_mobile.APP_PASSWORD not in json.dumps(res)
         res = await _call(s, "run_test_suite", path=str(cfg.parent / "scenarios"), environment="prep")
         assert res["summary"]["passed"] == 3, res
         res = await _call(s, "end_sessions")
-        assert {x["test_customer"] for x in res["ended"]} >= {"bireysel_standart"}
+        assert {x["test_customer"] for x in res["ended"]} >= {"retail_standard"}
         assert all(x["logged_out"] for x in res["ended"])
     asyncio.run(_session(clean_env(STM_CONFIG=str(cfg), STM_HOME=str(tmp_path / "home")), scenario))
     assert demo_mobile.STATS["ended_by_parallel_login"] == 0
@@ -179,7 +179,7 @@ class _FakeLLM(BaseHTTPRequestHandler):
             msg = {"role": "assistant", "content": None, "tool_calls": [
                 {"id": "c1", "type": "function", "function": {"name": "soap_call", "arguments": json.dumps(
                     {"service": "HesapServisi", "operation": "Login",
-                     "params": {"kullaniciAdi": "demo", "sifre": "{{env.demo_sifre}}"}})}}]}
+                     "params": {"kullaniciAdi": "demo", "sifre": "{{env.demo_password}}"}})}}]}
         else:
             result = json.loads(last["content"])
             msg = {"role": "assistant", "content": f"Login sonucu: Basarili={result['body']['Basarili']}"}
@@ -211,7 +211,7 @@ def test_standalone_agent(tmp_path, demo_port):
     assert tool_msg["role"] == "tool" and "Demo123!" not in tool_msg["content"]
 
 
-class _FakeTemelLLM(BaseHTTPRequestHandler):
+class _FakeBasicLLM(BaseHTTPRequestHandler):
     calls: list = []
 
     def log_message(self, *a):
@@ -219,15 +219,15 @@ class _FakeTemelLLM(BaseHTTPRequestHandler):
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        _FakeTemelLLM.calls.append(body)
+        _FakeBasicLLM.calls.append(body)
         last = body["messages"][-1]
         if last["role"] == "user":
             msg = {"role": "assistant", "content": None, "tool_calls": [
                 {"id": "c1", "type": "function", "function": {"name": "run_test", "arguments": json.dumps(
-                    {"test": "Kur bilgisi listeleme", "customer": "1000001", "environment": "demo"})}}]}
+                    {"test": "FX rate listing", "customer": "1000001", "environment": "demo"})}}]}
         else:
             result = json.loads(last["content"])
-            msg = {"role": "assistant", "content": f"sonuc={result['sonuc']}"}
+            msg = {"role": "assistant", "content": f"result={result['result']}"}
         data = json.dumps({"choices": [{"message": msg}]}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -244,17 +244,17 @@ def test_standalone_agent_default_toolset(tmp_path, demo_port):
     from service_test_mcp.agent.core import run_prompts
 
     demo_mobile.reset()
-    llm = ThreadingHTTPServer(("127.0.0.1", 0), _FakeTemelLLM)
+    llm = ThreadingHTTPServer(("127.0.0.1", 0), _FakeBasicLLM)
     threading.Thread(target=llm.serve_forever, daemon=True).start()
-    tanimlar = write_tanimlar(tmp_path, demo_port)
+    definitions = write_definitions(tmp_path, demo_port)
     args = argparse.Namespace(base_url=f"http://127.0.0.1:{llm.server_port}/v1", model="fake", api_key_env=None,
                               system_prompt=None, temperature=0.0, mcp_url=None, max_steps=5, toolset=None)
     cfg = build_config(args)
-    assert cfg.server_env["STM_TOOLSET"] == "temel"
-    cfg.server_env = clean_env(STM_TOOLSET="temel", STM_TANIMLAR=str(tanimlar), STM_HOME=str(tmp_path / "home"))
+    assert cfg.server_env["STM_TOOLSET"] == "basic"
+    cfg.server_env = clean_env(STM_TOOLSET="basic", STM_DEFINITIONS=str(definitions), STM_HOME=str(tmp_path / "home"))
     answers = asyncio.run(run_prompts(cfg, ["kur listesini 1000001 ile demo ortamında test et"]))
     llm.shutdown()
-    assert answers == ["sonuc=geçti"]
-    first = _FakeTemelLLM.calls[0]
-    assert {t["function"]["name"] for t in first["tools"]} == set(TEMEL_TOOL_NAMES)
+    assert answers == ["result=passed"]
+    first = _FakeBasicLLM.calls[0]
+    assert {t["function"]["name"] for t in first["tools"]} == set(BASIC_TOOL_NAMES)
     assert "run_test" in first["messages"][0]["content"]       # shared agent instructions

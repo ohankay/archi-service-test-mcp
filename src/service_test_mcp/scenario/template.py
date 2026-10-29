@@ -1,12 +1,12 @@
 """``{{...}}`` placeholders in scenario values.
 
-* ``{{name}}`` / ``{{oturum.token}}`` / ``{{liste[0].no}}`` - scenario variables and values captured by ``extract``.
+* ``{{name}}`` / ``{{session.token}}`` / ``{{liste[0].no}}`` - scenario variables and values captured by ``extract``.
 * ``{{env.name}}`` - ``variables`` of the selected environment in services.yaml (test data per environment).
 * ``{{test_customer.Field}}`` / ``{{session.Key}}`` - profile services: the test customer's fields and the login
   session.
   They are filled in by the profile when the request is built, so scenario rendering leaves them as they are.
 * ``{{secret.STM_SECRET_X}}`` / ``{{secret.x}}`` - a secret: the OS environment variable ``STM_SECRET_X``, else
-  ``x`` from the local gizli.yaml of the environment. Its value is redacted from every output.
+  ``x`` from the local secrets.yaml of the environment. Its value is redacted from every output.
 * ``{{$uuid}}``, ``{{$now}}``, ``{{$today}}``, ``{{$timestamp}}``, ``{{$random_digits(8)}}``,
   ``{{$random_int(1,100)}}``, ``{{$date(+3)}}`` (today +/- days).
 
@@ -58,7 +58,7 @@ class Context:
         self.env_variables = dict(env_variables or {})
         self.on_secret = on_secret
         self.keep = keep          # roots left as {{...}} for a later stage (e.g. "test_customer", "session")
-        self.secrets = secrets or {}   # local secret store (gizli.yaml) of the environment
+        self.secrets = secrets or {}   # local secret store (secrets.yaml) of the environment
         self._depth = 0
 
     def _kept(self, expr: str) -> bool:
@@ -115,7 +115,7 @@ class Context:
             if not value:
                 raise TemplateError(f"'{{{{{expr}}}}}': secret is not set. Set the environment variable {env_name} "
                                     "(in VS Code: the server's env in mcp.json with an ${input:...}) or put "
-                                    f"'{name}' into the local gizli.yaml for this environment.")
+                                    f"'{name}' into the local secrets.yaml for this environment.")
             if self.on_secret:
                 try:
                     self.on_secret(value, name[len(SECRET_PREFIX):].lower() if name.startswith(SECRET_PREFIX)

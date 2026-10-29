@@ -1,18 +1,18 @@
-id: mobil-login-dashboard
-title: Otomatik login (uygulama + musteri + OTP) ve ana sayfa
-tags: [smoke, mobil]
-test_customer: bireysel_standart
+id: mobile-login-dashboard
+title: Automatic login (app + customer + OTP) and the home page
+tags: [smoke, mobile]
+test_customer: retail_standard
 steps:
-  - name: Uygulama on verisi (oturumsuz)
-    service: MobilBankacilik
+  - name: App pre-data (no session)
+    service: MobileBanking
     operation: ApplicationPreData
     assert:
       - success: true
       - path: $.Value.MinVersion
         matches: "^\\d+\\.\\d+\\.\\d+$"
 
-  - name: Ana sayfa
-    service: MobilBankacilik
+  - name: Home page
+    service: MobileBanking
     operation: GetDashBoardMobileInformation
     params:
       MainResourceCode: DASHBOARD
@@ -28,8 +28,8 @@ steps:
         all: true
       - responseTimeMs: { lt: 3000 }
 
-  - name: Profil bilgileri (ayni oturum)
-    service: MobilBankacilik
+  - name: Profile basics (same session)
+    service: MobileBanking
     operation: GetProfileBasics
     assert:
       - success: true

@@ -1,0 +1,125 @@
+# Profile of the mobile banking WCF services (webHttpBinding, JSON over POST).
+# Everything specific to this service family is here; the MCP code knows nothing about it.
+
+name: mobile-wcf
+description: >-
+  WCF services used by the mobile app. Every request is POST <base_url>/<Module>/<Service>.svc/<Method>,
+  body = envelope (device / app / session fields) + the operation's parameters.
+
+request:
+  method: POST
+  url: "{path}/{operation}"
+  envelope:                                  # common fields sent with every request
+    MethodName: "{{operation}}"
+    ExtUSessionKey: "{{session.SessionKey}}"
+    ExtUName: "{{env.app_user}}"
+    ExtUPassword: "{{env.app_password}}"     # on real environments: "{{secret.STM_SECRET_MOBILE_APP_PASSWORD}}"
+    DeviceId: "{{env.device_id}}"
+    AppName: "{{env.app_name}}"
+    Version: "{{env.app_version}}"
+    Platform: 3
+    DeviceOSName: IOS
+    DeviceOSVersion: "26.5.2"
+    DeviceModel: iPhone 15 Pro Max
+    LanguageId: 1
+    SessionType: 1
+    IsDeviceRooted: false
+  session_envelope:                          # added only while a session with a test customer is open
+    OwnerCustomerId: "{{test_customer.CustomerId}}"
+  headers: {}                                # header details are still an open topic; templates go here
+
+success:                                     # business-level success: HTTP 200 + Success: true
+  - status: { lt: 400 }
+  - path: $.Success
+    equals: true
+error_paths: ["$.Results[*].ErrorCode", "$.Results[*].ErrorMessage"]
+
+session:
+  ttl_s: 300                                 # the server keeps a session for 5 minutes
+  refresh_margin_s: 30                       # a session older than 4.5 minutes is renewed before the next call
+  ttl_mode: absolute
+  defaults: { SessionKey: "" }
+  login:
+    - operation: LoginForMobileBranch        # app-level login
+      params: { UserId: "{{test_customer.UserId}}" }
+      extract: { SessionKey: $.SessionKey }
+    - operation: InitialLogin                # customer login (new session key)
+      params:
+        ExtUSessionKey: ""
+        CustomerId: "{{test_customer.CustomerId}}"
+        ActivationToken: "{{test_customer.ActivationToken}}"
+      extract: { SessionKey: $.SessionKey, AuthenticationToken: $.AuthenticationToken }
+    - operation: OtpLoginCompleteNew         # the OTP is fixed on test
+      params:
+        GeneratedOtp: "{{env.otp}}"
+        CustomerId: "{{test_customer.CustomerId}}"
+  logout: { operation: Logout }
+  expired_when:                              # the server ended the session -> login again + retry once
+    - path: $.Results[*].ErrorCode
+      contains: SESSION_EXPIRED
+  retry_mutating_on_expired: false           # money movements are not repeated automatically
+
+test_customers:
+  identity: [CustomerId]                     # the parallel-login lock is by this field
+  default: retail_standard
+
+environments:
+  test:
+    variables:
+      app_user: MobileTestApp
+      app_password: Demo-App-Pass1           # DEMO ONLY
+      device_id: 7D1E7C1E-0000-4000-8000-00000000A001
+      app_name: IOS MobileBranch
+      app_version: "7.2.5"
+      target_iban: TR320010009999901234567890
+    test_customers:
+      retail_standard:
+        description: Standard retail customer
+        CustomerId: 1000001
+        UserId: U1-a8f3
+        ActivationToken: ACT-1000001-x9
+      retail_pool:
+        description: Pool of retail customers for parallel runs
+        pool:
+          - { CustomerId: 1000002, UserId: U2-b7e1, ActivationToken: ACT-1000002-k4 }
+          - { CustomerId: 1000003, UserId: U3-c2d9, ActivationToken: ACT-1000003-p7 }
+      new_customer:
+        description: A customer taken from the test data service on every run
+        source:
+          operation: GetTestCustomer
+          extract:
+            CustomerId: $.Value.CustomerId
+            UserId: $.Value.UserId
+            ActivationToken: $.Value.ActivationToken
+  prep:
+    variables:
+      app_user: MobileTestApp
+      app_password: Demo-App-Pass1           # DEMO ONLY
+      device_id: 7D1E7C1E-0000-4000-8000-00000000B002
+      app_name: IOS MobileBranch
+      app_version: "7.2.5"
+      target_iban: TR320010009999901234567890
+    test_customers:
+      retail_standard:                       # same test customer name, customer of this environment
+        CustomerId: 2000001
+        UserId: P1-d4a2
+        ActivationToken: ACT-2000001-m3
+      retail_pool:
+        pool:
+          - { CustomerId: 2000002, UserId: P2-e5b3, ActivationToken: ACT-2000002-n8 }
+          - { CustomerId: 2000003, UserId: P3-f6c4, ActivationToken: ACT-2000003-q1 }
+      new_customer:
+        source:
+          operation: GetTestCustomer
+          extract:
+            CustomerId: $.Value.CustomerId
+            UserId: $.Value.UserId
+            ActivationToken: $.Value.ActivationToken
+
+noise: [InsertClientLog, HasUnreadNotification*, GetCusExpMeasureDefinitions*]
+
+importer:
+  test_customer_fields: [CustomerId, OwnerCustomerId, UserId, ActivationToken]
+  secret_fields: [ExtUPassword, GeneratedOtp, StsLoginOtp, ActivationToken]
+
+catalog: mobile.catalog.yaml

@@ -15,7 +15,7 @@ from service_test_mcp.importer.parsers import detect, parse_har, parse_traffic, 
 from service_test_mcp.profile.model import Catalog
 from service_test_mcp.scenario.runner import Runner
 
-SVC = "MobilBankacilik"
+SVC = "MobileBanking"
 
 
 def _empty_catalog(engine) -> Path:
@@ -86,7 +86,7 @@ def test_guess_kind():
 
 def test_import_preview_apply_and_reimport(mobile):
     catalog_path = _empty_catalog(mobile)
-    log = Path(mobile.settings.path).parent / "logs" / "ornek-prep-transaction.log"
+    log = Path(mobile.settings.path).parent / "logs" / "sample-prep-transaction.log"
     importer = Importer(mobile)
 
     preview = importer.run(str(log))
@@ -132,7 +132,7 @@ def test_import_preview_apply_and_reimport(mobile):
 
 def test_contract_change_is_reported(mobile):
     _empty_catalog(mobile)
-    log = Path(mobile.settings.path).parent / "logs" / "ornek-prep-transaction.log"
+    log = Path(mobile.settings.path).parent / "logs" / "sample-prep-transaction.log"
     importer = Importer(mobile)
     importer.run(str(log), apply=True)
     changed = log.read_text("utf-8").replace('"MinVersion": "7.0.0",', '"MinVersion": 7,\n    "Banner": "yeni",')
@@ -145,7 +145,7 @@ def test_contract_change_is_reported(mobile):
 
 def test_environment_from_base_url_and_unknown_hosts(mobile):
     _empty_catalog(mobile)
-    log = (Path(mobile.settings.path).parent / "logs" / "ornek-prep-transaction.log").read_text("utf-8")
+    log = (Path(mobile.settings.path).parent / "logs" / "sample-prep-transaction.log").read_text("utf-8")
     port = log.split("127.0.0.1:")[1].split("/")[0]
     as_test = Importer(mobile).run(content=log.replace("/prep/MobileBranch/", "/test/MobileBranch/"))
     assert as_test["services"][0]["environments"] == {"test": 8}
@@ -162,11 +162,11 @@ def test_environment_from_base_url_and_unknown_hosts(mobile):
 
 def test_draft_scenario_file_and_run(mobile):
     _empty_catalog(mobile)
-    log = Path(mobile.settings.path).parent / "logs" / "ornek-prep-transaction.log"
-    rep = Importer(mobile).run(str(log), apply=True, scenario_path="scenarios/_taslak.yaml")["services"][0]
+    log = Path(mobile.settings.path).parent / "logs" / "sample-prep-transaction.log"
+    rep = Importer(mobile).run(str(log), apply=True, scenario_path="scenarios/_draft.yaml")["services"][0]
     path = Path(rep["draft_scenario_file"])
-    assert path.exists() and path.name == "_taslak.yaml"
-    text = path.read_text("utf-8").replace("'**********************7890'", "'{{env.hedef_iban}}'")
+    assert path.exists() and path.name == "_draft.yaml"
+    text = path.read_text("utf-8").replace("'**********************7890'", "'{{env.target_iban}}'")
     out = Runner(mobile).run(content=text, environment="prep")
     assert out["summary"]["failed"] == 0, out
     with pytest.raises(PermissionError):

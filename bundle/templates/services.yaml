@@ -1,77 +1,77 @@
-# service-test-mcp servis katalogu.  Yer: %USERPROFILE%\.service-test-mcp\services.yaml  (veya mcp.json -> STM_CONFIG)
-# Sifre / token bu dosyaya YAZILMAZ: *_env alanlari, mcp.json "env" icindeki ${input:...} degiskenlerini gosterir.
-# Prod ortami tanimlanamaz (prod, production, prd, canli, live adlari reddedilir).
+# service-test-mcp service catalogue.  Location: %USERPROFILE%\.service-test-mcp\services.yaml  (or mcp.json -> STM_CONFIG)
+# Passwords / tokens are NOT written here: the *_env fields name the ${input:...} variables in the "env" of mcp.json.
+# Production environments cannot be defined (the names prod, production, prd, canli, live are refused).
 
 default_environment: test
 
 environments:
   test:
-    description: Test ortami
-    verify_tls: true              # true | false | kurum CA dosyasi: C:\\certs\\kurum-ca.pem
+    description: Test environment
+    verify_tls: true              # true | false | company CA file: C:\\certs\\company-ca.pem
     timeout_s: 30
-    # proxy: http://proxy.sirket.local:8080   # "none" = sistem proxy ayarlarini kullanma
-    allow_mutating: false         # mutating_operations listesindeki islemler engellenir
-    variables:                    # senaryolarda {{env.test_musteri_no}}
-      test_musteri_no: "1234567"
+    # proxy: http://proxy.company.local:8080   # "none" = do not use the system proxy settings
+    allow_mutating: false         # operations in mutating_operations are blocked
+    variables:                    # in scenarios: {{env.test_customer_no}}
+      test_customer_no: "1234567"
   preprod:
     description: Preprod
     allow_mutating: false
 
 services:
-  # --- WCF / SOAP: Windows oturumu ile (sifre gerekmez) ---------------------------------------------
-  HesapServisi:
+  # --- WCF / SOAP with the Windows session (no password needed) --------------------------------------
+  AccountService:
     protocol: soap
-    description: Hesap islemleri (WCF basicHttpBinding)
+    description: Account operations (WCF basicHttpBinding)
     wsdl:
-      test: https://SUNUCU-TEST/HesapServisi.svc?wsdl
-      preprod: https://SUNUCU-PREPROD/HesapServisi.svc?wsdl
-    # endpoint:                   # WSDL farkli bir adres yayinliyorsa (load balancer / makine adi)
-    #   test: https://SUNUCU-TEST/HesapServisi.svc
+      test: https://SERVER-TEST/HesapServisi.svc?wsdl
+      preprod: https://SERVER-PREPROD/HesapServisi.svc?wsdl
+    # endpoint:                   # when the WSDL publishes another address (load balancer / machine name)
+    #   test: https://SERVER-TEST/HesapServisi.svc
     auth: { type: windows }       # windows | ntlm | basic | ws_username_token | client_cert | none
-    mutating_operations: [TransferYap, "*Sil", "*Guncelle"]
-    # port_name: BasicHttpBinding_IHesapServisi   # birden fazla binding varsa
+    mutating_operations: [TransferYap, "*Sil", "*Guncelle"]   # the service's own operation names
+    # port_name: BasicHttpBinding_IHesapServisi   # when there are several bindings
 
-  # --- WCF / SOAP: servis kullanicisi ile NTLM ------------------------------------------------------
-  MusteriServisi:
+  # --- WCF / SOAP with a service user over NTLM -------------------------------------------------------
+  CustomerService:
     protocol: soap
-    wsdl: https://SUNUCU-TEST/MusteriServisi.svc?wsdl
+    wsdl: https://SERVER-TEST/MusteriServisi.svc?wsdl
     auth: { type: ntlm, user: "DOMAIN\\svc_test", password_env: STM_PW_NTLM }
     environments: [test]
 
-  # --- REST: bearer token -----------------------------------------------------------------------------
-  OdemeApi:
+  # --- REST with a bearer token ------------------------------------------------------------------------
+  PaymentApi:
     protocol: rest
     base_url:
-      test: https://api-test.sirket.local/odeme/v1
-    openapi:                      # istege bagli: describe_service / describe_operation icin
-      test: https://api-test.sirket.local/odeme/v1/swagger.json
+      test: https://api-test.company.local/payment/v1
+    openapi:                      # optional: for describe_service / describe_operation
+      test: https://api-test.company.local/payment/v1/swagger.json
     auth: { type: bearer, token_env: STM_TOKEN_API }
     headers: { X-Channel: TEST }
-    mutating_operations: ["POST /odemeler*", "DELETE /*"]
+    mutating_operations: ["POST /payments*", "DELETE /*"]
 
-  # --- Profilli servis ailesi: mobil bankacilik WCF (webHttpBinding, JSON) ----------------------------
-  # Operasyon adiyla cagrilir (call_operation). Zarf, login + OTP, session, personalar ve katalog profil
-  # dosyasindadir; ornek: mobile\profiles\mobil.profile.yaml (bu paketteki mobile klasoru).
-  # MobilBankacilik:
+  # --- A service family with a profile: mobile banking WCF (webHttpBinding, JSON) ---------------------
+  # Called by operation name (call_profile_operation). The envelope, login + OTP, session, test customers and the
+  # catalog are in the profile file; example: mobile\profiles\mobile.profile.yaml (the mobile folder of this package).
+  # MobileBanking:
   #   protocol: rest
   #   base_url:
-  #     test: https://MOBIL-TEST/BOA.Integration.MobileBranch
-  #     preprod: https://MOBIL-PREPROD/BOA.Integration.MobileBranch
-  #   profile: profiles/mobil.profile.yaml      # bu dosyaya gore goreli yol
+  #     test: https://MOBILE-TEST/BOA.Integration.MobileBranch
+  #     preprod: https://MOBILE-PREPROD/BOA.Integration.MobileBranch
+  #   profile: profiles/mobile.profile.yaml      # relative to this file
 
-# Test musterisi kilitleri (ayni test musterisiyle paralel login yok). Varsayilan: %USERPROFILE%\.service-test-mcp\locks
-# Ayni musterileri birden cok makine kullaniyorsa ortak bir klasor verin:
+# Test customer leases (no parallel login with the same test customer). Default: %USERPROFILE%\.service-test-mcp\locks
+# When several machines use the same customers, give a shared folder:
 # locks:
-#   dir: \\dosya-sunucusu\qa\service-test-locks
-#   wait_s: 30                    # test musterisi doluysa bu kadar bekle
+#   dir: \\file-server\qa\service-test-locks
+#   wait_s: 30                    # wait this long when a test customer is busy
 
 masking:
   enabled: true
   keep_last: 4
-  fields: [musteriNo]             # ek maskelenecek alan adlari (fnmatch)
-  unmask_fields: []               # hic maskelenmeyecek alan adlari
-  # patterns: { kurumKodu: "KT\\d{8}" }
+  fields: [musteriNo]             # extra field names to mask (fnmatch), as the service names them
+  unmask_fields: []               # field names never masked
+  # patterns: { companyCode: "KT\\d{8}" }
 
-# blocked_hosts: ["*.prod.sirket.local", "*-prod*"]
-# audit: { enabled: true, dir: "D:\\loglar\\service-test" }
-# scenario_root: D:\\testler\\senaryolar    # senaryo yollari bu klasorle sinirlanir
+# blocked_hosts: ["*.prod.company.local", "*-prod*"]
+# audit: { enabled: true, dir: "D:\\logs\\service-test" }
+# scenario_root: D:\\tests\\scenarios    # scenario paths are limited to this folder

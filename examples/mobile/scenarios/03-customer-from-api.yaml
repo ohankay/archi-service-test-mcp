@@ -1,0 +1,13 @@
+id: mobile-customer-from-api
+title: Login with a customer taken from the test data API
+tags: [mobile, test_customer]
+test_customer: new_customer            # every run takes a customer from GetTestCustomer
+steps:
+  - name: Home page
+    service: MobileBanking
+    operation: GetDashBoardMobileInformation
+    params: { MainResourceCode: DASHBOARD }
+    assert:
+      - success: true
+      - path: $.Value.CustomerName
+        notEmpty: true

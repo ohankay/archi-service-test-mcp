@@ -1,0 +1,11 @@
+name: User journey
+aliases: [journey, end to end, flow, scenario, kullanıcı yolculuğu, uçtan uca akış, senaryo]
+description: The path a real user takes between screens is tried by calling the operations in order.
+when_to_use: Flows where several operations must work correctly together.
+generator: agent
+rules:
+  - Write the flow step by step in the order the customer uses the app (steps).
+  - When a step's output is the next step's input, pass it with 'extract'.
+  - Put at least one business rule check on every step ('success' alone is not enough).
+  - For data that changes (balance, rate, date) write rule checks, not fixed values.
+status: approved

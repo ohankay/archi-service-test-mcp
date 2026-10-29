@@ -32,6 +32,16 @@ class ConfigError(ValueError):
     """Invalid or incomplete configuration."""
 
 
+def env_setting(name: str, legacy: str | None = None, default: str | None = None) -> str | None:
+    """An STM_* setting; ``legacy`` is the name used by earlier versions (still read, so old mcp.json files work).
+    An unexpanded VS Code placeholder (${input:...}) counts as not set."""
+    for key in (name, legacy):
+        value = os.environ.get(key) if key else None
+        if value and not (value.startswith("${") and value.endswith("}")):
+            return value
+    return default
+
+
 def home_dir() -> Path:
     value = os.environ.get("STM_HOME")
     return Path(value).expanduser() if value else Path.home() / ".service-test-mcp"

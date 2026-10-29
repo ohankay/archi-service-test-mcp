@@ -1,0 +1,38 @@
+name: Account list
+description: The customer's open current accounts, in groups (the My Accounts screen).
+method: AccountListByGroup
+path: BOA.Integration.MobileBanking.Account/AccountService.svc
+kind: read
+session: true
+status: approved
+inputs:
+  only_tl:
+    field: ShowOnlyTLAccounts
+    type: boolean
+    default: false
+    description: Only TL accounts
+  show_without_balance:
+    field: ShowAccountsWithNoBalance
+    type: boolean
+    default: false
+fixed:
+  MainResourceCode: MOBROTHRBN
+  MainResourceId: 21722
+  ListType: 2
+  ShowOnlyOpenAccounts: true
+  ShowOnlyCurrentAccounts: true
+  ShowSharedAccounts: true
+  ShowSharedAccountsWithMultiSignature: true
+  ShowOnlyParticipationAccounts: false
+  ShowOnlyAccountsHasAvailableBalance: false
+  ShowOnlyAccountsHasNoAvailableBalance: false
+  ShowOnlyInvestmentAccounts: false
+  DontShowInvestmentAccounts: false
+  DontShowSalaryAndStockAccounts: false
+  DontShowFinancialBlockedAccounts: false
+  DontShowPreciousMetals: false
+  DontShowUnPreciousMetals: false
+  ShowDipBipDepositAccounts: false
+  ShowAccountsWithAccountNumberList: false
+checks:
+  - AccountGroups exists

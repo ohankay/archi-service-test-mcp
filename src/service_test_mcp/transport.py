@@ -48,11 +48,11 @@ def build_session(settings: Settings, service: ServiceConfig, env: EnvironmentCo
             from . import winproxy
 
             base = service.value_for("base_url", env.name) or ""
-            decision = winproxy.karar(base) if base else None
-            session.stm_proxy_karari = decision  # type: ignore[attr-defined]  # shown by check_connection
-            if decision and decision.get("proxyler"):
-                session.proxies = {"http": decision["proxyler"][0], "https": decision["proxyler"][0]}
-            elif decision and decision.get("yol") == "doğrudan":
+            decision = winproxy.decision(base) if base else None
+            session.stm_proxy_decision = decision  # type: ignore[attr-defined]  # shown by check_connection
+            if decision and decision.get("proxies"):
+                session.proxies = {"http": decision["proxies"][0], "https": decision["proxies"][0]}
+            elif decision and decision.get("route") == "direct":
                 session.trust_env = False
         else:
             session.proxies = {"http": env.proxy, "https": env.proxy}

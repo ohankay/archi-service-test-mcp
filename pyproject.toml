@@ -38,7 +38,7 @@ service-test-agent = "service_test_mcp.agent.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-service_test_mcp = ["prompts/*.md", "ornek_tanimlar/*/*.yaml"]
+service_test_mcp = ["prompts/*.md", "sample_definitions/*/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

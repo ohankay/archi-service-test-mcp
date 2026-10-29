@@ -2,37 +2,37 @@
 
 A file holds one scenario, or several under ``scenarios:``::
 
-    id: hesap-bakiye-01
-    title: Gecerli musteri icin bakiye sorgusu
-    tags: [hesap, smoke]
+    id: account-balance-01
+    title: Balance query for a valid customer
+    tags: [account, smoke]
     environment: test            # optional, default from services.yaml
     variables:
-      musteriNo: "{{env.test_musteri_no}}"
+      customer_no: "{{env.test_customer_no}}"
     steps:
-      - name: Bakiye sorgula
+      - name: Query the balance
         service: HesapServisi    # SOAP service -> operation + params
         operation: GetBakiye
-        params: { musteriNo: "{{musteriNo}}" }
+        params: { musteriNo: "{{customer_no}}" }   # the service's own field names
         assert:
           - fault: none
           - path: $.Bakiye
             type: decimal
         extract:
-          hesapNo: $.HesapNo
-      - name: Hesap detayi
+          account_no: $.HesapNo
+      - name: Account detail
         service: HesapApi        # REST service -> method + path (+ query, headers, body)
         method: GET
-        path: /hesaplar/{{hesapNo}}
+        path: /hesaplar/{{account_no}}
         assert:
           - status: 200
 
 Profile services (``profile:`` in services.yaml) are called by operation name; login, session, envelope and
 headers come from the profile. ``test_customer`` picks the test customer (scenario-wide or per step)::
 
-    test_customer: bireysel_standart
+    test_customer: retail_standard
     steps:
       - name: Dashboard
-        service: MobilBankacilik
+        service: MobileBanking
         operation: GetDashBoardMobileInformation
         params: { MainResourceCode: DASHBOARD }
         assert:

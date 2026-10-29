@@ -1,0 +1,41 @@
+name: Account transactions
+description: The transactions of an account in a date range.
+method: AccountTransactionHistoryList
+path: BOA.Integration.MobileBanking.Account/AccountService.svc
+kind: read
+session: true
+status: approved
+inputs:
+  account_no:
+    field: AccountNumber
+    type: integer
+    required: true
+    description: Account number (when not given, the first account of the account list)
+    source: {operation: Account list, extract: "AccountGroups.Accounts[0].AccountNumber"}
+  account_suffix:
+    field: AccountSuffix
+    type: integer
+    default: 1
+    min: 1
+    description: Account suffix
+  start:
+    field: BeginDate
+    type: date
+    format: DD.MM.YYYY
+    default: today-7
+  end:
+    field: EndDate
+    type: date
+    format: DD.MM.YYYY
+    default: today
+date_range: {start: start, end: end, max_days: 365}
+fixed:
+  MainResourceCode: MOBROTHRBN
+  MainResourceId: 21722
+  AccountType: Cari
+  MinAmount: 0
+  MaxAmount: 0
+  IsSTSApprovement: false
+  IsMultipleAccountRequest: false
+checks:
+  - AccountTransactionHistoryList exists

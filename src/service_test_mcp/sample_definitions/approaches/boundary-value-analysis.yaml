@@ -1,0 +1,8 @@
+name: Boundary value analysis
+aliases: [boundary value, boundary value testing, boundary, BVA, sınır değer, sınır değer analizi]
+description: Just inside, exactly on and just outside a limit are tried; most errors are at the limits.
+when_to_use: Inputs with a number, date or length limit, or a date range rule.
+generator: boundary_value
+expected_outside: error
+limit: 40
+status: approved

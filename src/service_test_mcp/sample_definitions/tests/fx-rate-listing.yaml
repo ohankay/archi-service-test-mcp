@@ -1,0 +1,12 @@
+name: FX rate listing
+description: The rate list comes back; in every rate the bid must not be greater than the ask.
+tags: [smoke, fx]
+status: approved
+steps:
+  - operation: FX rates
+    checks:
+      - count FXRateModelList >= 1
+      - FXRateModelList.BaseFecCode is not empty
+      - "for each FXRateModelList: CurrencyBid <= CurrencyAsk"
+      - "for each FXRateModelList: CurrencyBid > 0"
+      - duration < 3 s

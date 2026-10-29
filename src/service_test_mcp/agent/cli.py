@@ -13,7 +13,7 @@ LLM settings (environment variables or flags):
     STM_AGENT_AZURE_API_VERSION (optional) e.g. 2024-10-21 -> Azure OpenAI deployment URL style
     STM_AGENT_VERIFY_TLS        true | false | path to CA bundle
     STM_AGENT_SYSTEM_PROMPT     (optional) path to a text file replacing the default system prompt
-    STM_AGENT_TOOLSET           temel (default, 7 tools) | uzman (every tool)
+    STM_AGENT_TOOLSET           basic (default, 8 tools) | expert (every tool)
 The MCP server it starts reads the usual STM_CONFIG / service secrets from the same environment.
 """
 
@@ -124,14 +124,14 @@ async def _main(args: argparse.Namespace) -> int:
                         text = await anyio.to_thread.run_sync(input, "\nsen> ")
                     except (EOFError, KeyboardInterrupt):
                         break
-                    if text.strip().lower() in ("exit", "quit", "cik", "çık"):
+                    if text.strip().lower() in ("exit", "quit"):
                         break
                     if not text.strip():
                         continue
                     try:
                         answer = await agent.ask(text)
                     except LLMError as exc:
-                        print(f"[LLM hatası] {exc}", flush=True)
+                        print(f"[LLM error] {exc}", flush=True)
                         continue
                     answers.append(answer)
                     print(f"\nagent> {answer}", flush=True)
@@ -143,7 +143,7 @@ async def _main(args: argparse.Namespace) -> int:
     if args.output:
         lines = []
         for item in agent.transcript:
-            lines += [f"## Soru\n\n{item['question']}\n", f"## Yanıt\n\n{item['answer']}\n"]
+            lines += [f"## Question\n\n{item['question']}\n", f"## Answer\n\n{item['answer']}\n"]
         Path(args.output).write_text("\n".join(lines), encoding="utf-8")
     if args.transcript:
         Path(args.transcript).write_text(json.dumps(agent.messages, ensure_ascii=False, indent=2, default=str),
@@ -164,8 +164,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--system-prompt", help="file replacing the default system prompt")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-steps", type=int, default=25, help="max LLM turns per request")
-    parser.add_argument("--toolset", choices=("temel", "uzman", "all", "profile"),
-                        help="temel (default): the 7 definition/test tools; uzman: also raw SOAP/REST, profile "
+    parser.add_argument("--toolset", choices=("basic", "expert"),
+                        help="basic (default): the 8 definition/test tools; expert: also raw SOAP/REST, profile "
                              "and YAML-scenario tools (STM_AGENT_TOOLSET)")
     parser.add_argument("--mcp-url", help="streamable HTTP URL of a running server (default: start one over stdio)")
     parser.add_argument("--check", action="store_true", help="test LLM + MCP connectivity and exit")

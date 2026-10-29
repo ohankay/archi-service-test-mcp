@@ -1,0 +1,18 @@
+name: Account transactions view
+description: The last 30 days of transactions of the first account are listed; they must be in the requested range.
+tags: [account]
+status: approved
+steps:
+  - operation: Account list
+    extract:
+      account_no: AccountGroups.Accounts[0].AccountNumber
+      account_suffix: AccountGroups.Accounts[0].AccountSuffix
+  - operation: Account transactions
+    input:
+      account_no: "{{account_no}}"
+      account_suffix: "{{account_suffix}}"
+      start: today-30
+    checks:
+      - "for each AccountTransactionHistoryList: TransactionDate between {{start}} and {{end}}"
+      - "for each AccountTransactionHistoryList: Amount != 0"
+    ai_review: Are the transaction descriptions and amounts meaningful and consistent with each other?

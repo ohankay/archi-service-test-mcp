@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .. import iz
+from .. import trace
 from ..config import ConfigError, EnvironmentConfig
 from ..scenario.asserts import evaluate, find
 from ..scenario.template import Context
@@ -143,8 +143,8 @@ class ProfileRuntime:
         if not test_customer and default:
             return str(default)
         if not test_customer and self.profile.adhoc_field and not test_customers:
-            raise ProfileError(f"Hangi müşteriyle? '{self.service}' için müşteri numarası verin (customer=...) "
-                               f"ya da '{env.name}' ortamına varsayilan_musteri yazın.")
+            raise ProfileError(f"Which customer? Give a customer number for '{self.service}' (customer=...) "
+                               f"or write default_customer in the '{env.name}' environment.")
         if test_customer:
             test_customer = str(test_customer)
             if test_customer not in test_customers:
@@ -200,9 +200,9 @@ class ProfileRuntime:
         if test_customer and test_customer != NO_TEST_CUSTOMER:
             result["test_customer"] = test_customer
         result["business"] = self.business(result)
-        kayit = iz.son()
-        if kayit is not None and kayit.get("islem") == op.name and "hata" not in kayit:
-            kayit["is_sonucu"] = result["business"]
+        record = trace.last()
+        if record is not None and record.get("operation") == op.name and "error" not in record:
+            record["business"] = result["business"]
         if self.hooks is not None and hasattr(self.hooks, "inspect"):
             self.hooks.inspect(result, {"environment": env.name, "operation": op.name, "session": session_vars,
                                         "test_customer": test_customer_vars})
@@ -212,9 +212,9 @@ class ProfileRuntime:
         if result.get("error"):
             return {"success": False, "errors": [result["error"].get("message")]}
         if self.profile.success_lines:
-            from ..tanim.kontrol import kontrol_et
+            from ..definitions.checks import run_checks
 
-            ok = all(c["gecti"] for c in kontrol_et(self.profile.success_lines, result, self.profile.error_paths))
+            ok = all(c["passed"] for c in run_checks(self.profile.success_lines, result, self.profile.error_paths))
         elif self.profile.success:
             ok = all(c["passed"] for c in evaluate(self.profile.success, result))
         else:
@@ -234,9 +234,9 @@ class ProfileRuntime:
 
     def _expired(self, result: dict[str, Any]) -> bool:
         if self.profile.expired_lines:
-            from ..tanim.kontrol import kontrol_et
+            from ..definitions.checks import run_checks
 
-            return all(c["gecti"] for c in kontrol_et(self.profile.expired_lines, result, self.profile.error_paths))
+            return all(c["passed"] for c in run_checks(self.profile.expired_lines, result, self.profile.error_paths))
         rules = self.profile.session.expired_when
         return bool(rules) and all(c["passed"] for c in evaluate(rules, result))
 
@@ -280,7 +280,7 @@ class ProfileRuntime:
             raise ProfileError(f"test_customer '{test_customer.name}': source operation '{op.name}' must not need a "
                                "session "
                                "(set session: false in the catalog)")
-        result = self._send(env, op, step.params, dict(self.profile.session.defaults), {}, "müşteri kaynağı", None)
+        result = self._send(env, op, step.params, dict(self.profile.session.defaults), {}, "customer source", None)
         if not result["business"]["success"]:
             raise ProfileError(f"test_customer '{test_customer.name}': {op.name} failed: "
                                f"{result['business'].get('errors')}")
@@ -329,9 +329,9 @@ class ProfileRuntime:
 
     def _find(self, body: Any, path: str) -> list[Any]:
         if self.profile.dotted_paths:
-            from ..tanim.kontrol import coz
+            from ..definitions.checks import resolve
 
-            return coz(body, path)
+            return resolve(body, path)
         return find(body, path)
 
     def _busy(self, env: EnvironmentConfig, name: str, keys: list[str]) -> Any:
@@ -356,10 +356,10 @@ class ProfileRuntime:
             op = self.profile.catalog.get(step.operation)
             if op is None:
                 raise LoginFailed(f"login step '{step.operation}' is not in the catalog of '{self.service}'")
-            where = f"giriş {i}/{len(steps)}"
+            where = f"login {i}/{len(steps)}"
             result = self._send(env, op, step.params, st.vars, st.test_customer_vars, where, st.test_customer)
             if not result["business"]["success"]:
-                reason = (result.get("error") or {}).get("asama") or \
+                reason = (result.get("error") or {}).get("phase") or \
                     result["business"].get("errors") or f"HTTP {result.get('status')}"
                 raise LoginFailed(f"{where} ({op.name}) failed for test_customer '{st.test_customer}' ({env.name}): "
                                   f"{reason}")
@@ -369,10 +369,10 @@ class ProfileRuntime:
                     raise LoginFailed(f"{where} ({op.name}): {path} not found in the response")
                 st.vars[name] = values[0]
                 if isinstance(values[0], str):
-                    self.engine.masker.add_secret(values[0], f"oturum.{name}")
-            kayit = iz.son()
-            if kayit is not None and step.extract:
-                kayit["alinan"] = [f"oturum.{n}" for n in step.extract]
+                    self.engine.masker.add_secret(values[0], f"session.{name}")
+            record = trace.last()
+            if record is not None and step.extract:
+                record["extracted"] = [f"session.{n}" for n in step.extract]
         st.created = st.last_used = time.time()
         st.logins += 1
         st.logged_in = True
@@ -385,7 +385,7 @@ class ProfileRuntime:
                 step: StepSpec = self.profile.session.logout
                 op = self.profile.catalog.get(step.operation)
                 if op is not None:
-                    res = self._send(env, op, step.params, st.vars, st.test_customer_vars, "çıkış", st.test_customer)
+                    res = self._send(env, op, step.params, st.vars, st.test_customer_vars, "logout", st.test_customer)
                     out["logged_out"] = bool(res["business"]["success"])
             except Exception as exc:  # noqa: BLE001
                 out["logout_error"] = str(exc)[:300]

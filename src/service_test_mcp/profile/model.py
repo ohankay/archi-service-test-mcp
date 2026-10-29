@@ -1,6 +1,6 @@
 """Service profiles: how a family of HTTP + JSON operations is called, so the agent only names an operation.
 
-A REST service in ``services.yaml`` points to a profile file with ``profile: profiles/mobil.profile.yaml``::
+A REST service in ``services.yaml`` points to a profile file with ``profile: profiles/mobile.profile.yaml``::
 
     name: mobile-wcf
     request:
@@ -46,7 +46,7 @@ A REST service in ``services.yaml`` points to a profile file with ``profile: pro
     importer:
       test_customer_fields: [CustomerId, OwnerCustomerId, UserId]
       secret_fields: [ExtUPassword]
-    catalog: mobil.catalog.yaml           # operation catalog (written by import_traffic_log, edited by people)
+    catalog: mobile.catalog.yaml           # operation catalog (written by import_traffic_log, edited by people)
     hooks: hooks.py:MobileHooks           # optional Python class for logic YAML can not express
 
 Nothing here is specific to one bank or one app: a new service family is a new profile file, not new code.
@@ -336,7 +336,7 @@ class Profile:
     catalog_path: Path | None = None
     hooks: str | None = None
     catalog: Catalog = field(default_factory=lambda: Catalog(path=None))
-    # set when the profile is compiled from definitions (tanimlar/): rules in the check language, dotted paths,
+    # set when the profile is compiled from definitions (definitions/): rules in the check language, dotted paths,
     # and test customers given just by their number (adhoc_field = the variable that holds it)
     success_lines: list[str] = field(default_factory=list)
     expired_lines: list[str] = field(default_factory=list)
