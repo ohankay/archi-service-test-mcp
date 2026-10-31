@@ -226,30 +226,57 @@ def _tests(name: str, customer: str | None, environment: str | None, tags: str |
     ok = ("passed", "observations")
     for r in view:
         took = f" ({r['duration_ms']:.0f} ms)" if "duration_ms" in r else ""
-        print(f"[{r['result'].upper()}] {r['test']}{took}")
+        counts = r.get("assertion_summary") or {}
+        tally = f" - assertions {counts['passed']}/{counts['total']} passed" if counts.get("total") else ""
+        print(f"[{r['result'].upper()}] {r['test']}{took}{tally}")
         if r.get("message"):
             print(f"       {r['message']}")
         for p in r.get("steps") or r.get("examples") or []:
-            if p["result"] != "passed":
-                print(f"       {p['result']}: {p.get('step') or p.get('case')} {p.get('message') or ''}")
-                for c in p.get("failed_checks") or []:
-                    print(f"         - {c['check']}: {c.get('message') or ''} (actual: "
-                          f"{json.dumps(c.get('actual'), ensure_ascii=False, default=str)[:200]})")
-                if p["result"] == "observation":
-                    print(f"         response: {p.get('response')} {p.get('errors') or ''} -> waiting for review")
+            print(f"       {p['result']}: {p.get('step') or p.get('case')} {p.get('message') or ''}".rstrip())
+            for c in p.get("assertions") or []:
+                actual = json.dumps(c.get("actual"), ensure_ascii=False, default=str)[:200]
+                print(f"         [{'PASS' if c['passed'] else 'FAIL'}] ({c['source']}) {c['check']} - actual: {actual}"
+                      + (f" - {c['message']}" if c.get("message") else ""))
+            if p["result"] == "observation":
+                print(f"         response: {p.get('response')} {p.get('errors') or ''} -> waiting for review")
     if report_path:
         with open(report_path, "w", encoding="utf-8") as fh:
             fh.write(json.dumps(view, indent=2, ensure_ascii=False, default=str))
     if junit:
         from .scenario.runner import write_junit
 
-        write_junit([{"id": r["test"], "source": "definitions", "passed": r["result"] in ok,
-                      "duration_ms": r.get("duration_ms", 0),
-                      "error": r.get("message") or (None if r["result"] in ok else r["result"]),
-                      "steps": []} for r in view], junit)
+        write_junit(_junit_cases(view, ok), junit)
     failed = sum(1 for r in view if r["result"] not in ok)
     print(f"\n{len(view) - failed}/{len(view)} tests passed" + (f" - JUnit: {junit}" if junit else ""))
     return 0 if failed == 0 else 1
+
+
+def _junit_cases(view: list[dict], ok: tuple[str, ...]) -> list[dict]:
+    """One JUnit testcase per assertion (test -> classname, step + check -> name), so CI lists every assertion;
+    steps without assertions (errors, observations, skipped) and tests that did not run are one case each."""
+    cases = []
+    for r in view:
+        parts = r.get("steps") or r.get("examples") or []
+        if not parts:
+            cases.append({"id": r["test"], "source": r["test"], "passed": r["result"] in ok,
+                          "duration_ms": r.get("duration_ms", 0), "error": r.get("message") or r["result"],
+                          "steps": []})
+        for p in parts:
+            label = p.get("step") or p.get("case")
+            records = p.get("assertions") or []
+            if not records:
+                cases.append({"id": f"{label}", "source": r["test"], "passed": p["result"] in ("passed", "observation"),
+                              "duration_ms": p.get("duration_ms") or 0, "error": p.get("message") or p["result"],
+                              "steps": []})
+            for c in records:
+                cases.append({"id": f"{label} | {c['check']}", "source": r["test"], "passed": c["passed"],
+                              "duration_ms": 0,
+                              "error": None if c["passed"] else
+                              f"expected {c.get('expected')}, actual "
+                              f"{json.dumps(c.get('actual'), ensure_ascii=False, default=str)[:300]}"
+                              + (f" ({c['message']})" if c.get("message") else ""),
+                              "steps": []})
+    return cases
 
 
 def main(argv: list[str] | None = None) -> int:

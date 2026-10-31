@@ -95,7 +95,13 @@ Kararı makine verir, yorumu AI yapar:
   for each FXRateModelList: CurrencyBid <= CurrencyAsk
   for each AccountTransactionHistoryList: TransactionDate between {{start}} and {{end}}
   ```
-  Diğer işleçler: `=`, `!=`, `>`, `>=`, `<`, `<=`, `contains`, `does not contain`, `is empty`, `exists`, `missing`. Alan yolları yanıttaki alan adlarıdır; listeler otomatik gezilir. Bakiye, kur, tarih gibi değişen veriler için sabit değer yerine **kural** yazılır.
+  Diğer işleçler: `=`, `!=`, `>`, `>=`, `<`, `<=`, `contains`, `does not contain`, `is empty`, `exists`, `missing`.
+
+  Sonuçta yalnızca passed/failed değil, **her assertion** ayrı ayrı gelir; geçenler de. Her adım ve tablo satırı için `assertions` listesi ve `assertion_summary`:
+  ```json
+  {"check": "count AccountGroups.Accounts >= 1", "source": "step", "passed": true, "expected": "count >= 1", "actual": 2}
+  ```
+  `source` kontrolün nereden geldiğini söyler: `system` (sistemin iş başarı kuralı), `operation` (işlemin kendi kontrolleri), `test`, `step`, `example`. Sonuç sınırı aşacaksa önce tamamı `result_file`'a yazılır, sonra sırayla kısaltılır (önce geçen assertion'ların değerleri); kalan assertion'ların beklenen ve gerçek değeri hep kalır. CLI her assertion'ı `[PASS]`/`[FAIL]` satırı olarak yazar; JUnit raporunda her assertion ayrı bir testcase'tir. Alan yolları yanıttaki alan adlarıdır; listeler otomatik gezilir. Bakiye, kur, tarih gibi değişen veriler için sabit değer yerine **kural** yazılır.
 - **`expected: ?` sonuçları gözlem (`observation`) olarak raporlanır.** Servisin ne yapması gerektiği bilinmiyorsa ajan karar vermez; davranışı size gösterir ve sorar. Onayladığınız sonuç teste yazılır ve o andan itibaren test deterministik koşar.
 - **`ai_review:` sorularını ajan yanıtlar.** Örnek: "Hareket açıklamaları anlamlı mı?" Bu yanıt ayrı bir bölümde AI görüşü olarak gelir ve passed/failed kararını etkilemez.
 

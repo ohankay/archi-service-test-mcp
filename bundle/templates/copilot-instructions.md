@@ -11,6 +11,7 @@
   `ai_review` questions are your opinion, not a pass/fail decision.
 - Check lines: `success`, `count X >= 1`, `X is not empty`, `X matches ^TR`, `for each LIST: A <= B`,
   `X between a and b`. For data that changes (balance, rate, date) write a rule, not a fixed value.
+- Report every assertion (`assertions`: check, source, expected, actual, passed), not only passed/failed.
 - Report `result` and `problem` first; when something fails show the `flow` line, the error `phase`, the cause `chain`
   and `likely_causes`. Connection problems: `check_connection`.
 - Do not guess hidden values («secret: name»). When done, `end_sessions`.

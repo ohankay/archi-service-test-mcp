@@ -267,10 +267,43 @@ def evaluate(c: Check, result: dict[str, Any], error_paths: list[str]) -> dict[s
                 return out
             right = _literal(c.right) if c.right is not None else None
             bad = [v for v in values if not _apply(c.op or "=", v, right)]
-            out.update(passed=not bad, actual=values[0] if len(values) == 1 else
-                       (f"{len(values)} values" if not bad else bad[:5]))
+            out.update(passed=not bad, actual=values[0] if len(values) == 1 else (values if not bad else bad[:5]))
+            if bad and len(values) > 1:
+                out["message"] = f"{len(bad)}/{len(values)} values do not match"
     except CheckError as exc:
         out.update(passed=False, message=str(exc))
+    return out
+
+
+def expectation(c: Check) -> str:
+    """What the check expects, without the field path: '>= 1', 'is not empty', 'business success' ..."""
+    if c.kind == "success":
+        return "business success" if c.expect_success else "business failure"
+    if c.kind == "duration":
+        return f"duration {c.op} {c.right} ms"
+    if c.kind == "error_code":
+        return f"an error field {c.op} {c.right}"
+    base = f"{c.op} {c.right}" if c.right is not None else str(c.op)
+    if c.count:
+        base = f"count {base}"
+    return f"every item of {c.each}: {c.path} {base}" if c.each else base
+
+
+def assertions(items: list[tuple[str, str]], result: dict[str, Any], error_paths: list[str]) -> list[dict[str, Any]]:
+    """(check line, where it comes from) pairs -> one record per assertion: check, source, passed, expected, actual."""
+    out = []
+    for line, source in items:
+        try:
+            c = parse(line)
+            r = evaluate(c, result, error_paths)
+            entry: dict[str, Any] = {"check": r["check"], "source": source, "passed": r["passed"],
+                                     "expected": expectation(c), "actual": r.get("actual")}
+        except CheckError as exc:
+            r = {"message": str(exc)}
+            entry = {"check": str(line), "source": source, "passed": False, "actual": None}
+        if r.get("message") and r.get("message") != "ok":
+            entry["message"] = r["message"]
+        out.append(entry)
     return out
 
 

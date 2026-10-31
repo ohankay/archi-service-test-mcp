@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -112,8 +113,12 @@ def test_failures_observations_and_errors(definition_engine):
     assert [r["result"] for r in report["examples"]] == ["passed", "failed", "observation", "error"]
     assert report["result"] == "failed"
     failed = report["examples"][1]
-    assert failed["failed_checks"][0]["check"] == "success" and "INVALID_DATE_RANGE" in \
-        failed["failed_checks"][0]["actual"]
+    assert failed["assertions"][0]["check"] == "success" and failed["assertions"][0]["passed"] is False and \
+        "INVALID_DATE_RANGE" in failed["assertions"][0]["actual"]
+    assert report["examples"][0]["assertions"][1] == {"check": "error code = INVALID_DATE_RANGE", "source": "example",
+                                                      "passed": True, "expected": "an error field = INVALID_DATE_RANGE",
+                                                      "actual": ["INVALID_DATE_RANGE",
+                                                                 "Bitiş tarihi başlangıçtan önce olamaz"]}
     assert report["examples"][2]["response"] == "success" and "pending_review" in report
     assert "an integer was expected" in report["examples"][3]["message"]
     # a missing required input that has a source is taken from the other operation
@@ -125,6 +130,37 @@ def test_failures_observations_and_errors(definition_engine):
     definition_engine.profiles["Mobile Banking"].profile.environment("demo").default_customer = None
     report = runner.run("Login", environment="demo")
     assert report["result"] == "failed" and "customer number" in report["steps"][0]["message"]
+
+
+def test_every_assertion_is_reported(definition_engine):
+    """Not only passed/failed: each assertion of each step with where it comes from, what it expected and what came."""
+    runner = TestRunner(definition_engine)
+    report = runner.run("Account listing", customer="1000001", environment="demo")
+    step = report["steps"][0]
+    assert [(a["source"], a["check"]) for a in step["assertions"]] == [
+        ("system", "success"), ("operation", "AccountGroups exists"),
+        ("step", "count AccountGroups.Accounts >= 1"),
+        ("step", r"AccountGroups.Accounts.IBANNumber matches ^TR\d{24}$"),
+        ("step", "AccountGroups.Accounts.AccountFECCode is not empty"),
+        ("step", "for each AccountGroups.Accounts: AccountAvailableBalance <= AccountBalance")]
+    assert all(a["passed"] for a in step["assertions"]) and step["assertion_summary"] == \
+        {"total": 6, "passed": 6, "failed": 0}
+    count = step["assertions"][2]
+    assert count["expected"] == "count >= 1" and count["actual"] == 2
+    assert step["assertions"][4]["actual"] == ["TRY", "USD"]                # the values seen, not just how many
+    # a failing assertion does not hide the passing ones of the same step
+    test = {"name": "t", "steps": [{"operation": "Account list", "checks": [
+        "count AccountGroups.Accounts >= 1", "AccountGroups.Accounts.AccountFECCode = XYZ"]}]}
+    report = runner.run(content=test, customer="1000001", environment="demo")
+    records = report["steps"][0]["assertions"]
+    assert [a["passed"] for a in records] == [True, True, True, False] and report["result"] == "failed"
+    assert records[3]["expected"] == "= XYZ" and records[3]["actual"] == ["TRY", "USD"]
+    assert report["assertion_summary"] == {"total": 4, "passed": 3, "failed": 1}
+    # templates are shown as they were evaluated
+    report = runner.run("Account transactions view", customer="1000001", environment="demo")
+    between = next(a for a in report["steps"][1]["assertions"] if "between" in a["check"])
+    assert "{{" not in between["check"]
+    assert re.search(r"between \d\d\.\d\d\.\d{4} and \d\d\.\d\d\.\d{4}$", between["check"])
 
 
 def test_customer_is_just_a_number_and_locked(definition_engine, definitions):
@@ -349,6 +385,9 @@ def test_cli_init_and_test(tmp_path, demo_port):
                           "--junit", str(junit)], env=env, capture_output=True, text=True, timeout=120)
     assert out.returncode == 0, out.stdout + out.stderr
     assert "4/4 tests passed" in out.stdout and junit.exists()
+    assert "[PASS] (step) count AccountGroups.Accounts >= 1 - actual: 2" in out.stdout
+    cases = junit.read_text("utf-8").count("<testcase ")
+    assert cases > 4 and 'name="Account list | count AccountGroups.Accounts &gt;= 1"' in junit.read_text("utf-8")
     again = subprocess.run([sys.executable, "-m", "service_test_mcp", "--init"], env=env, capture_output=True,
                            text=True, timeout=60)
     assert json.loads(again.stdout)["copied"] == []                        # existing files are kept

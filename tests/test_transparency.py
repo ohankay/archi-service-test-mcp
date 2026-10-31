@@ -285,3 +285,22 @@ def test_everything_mode_still_fits(transparent, monkeypatch):
     r = json.loads(text)
     assert r["result"] == "passed" and len(r["flow"]) == 5 and Path(r["trace_file"]).exists()
     assert len(text) < 3500
+
+
+def test_long_results_keep_every_assertion_in_a_file(transparent, monkeypatch):
+    """A big table does not fit the result: the full report goes to result_file first, failed assertions keep their
+    values, passed ones keep their check line."""
+    monkeypatch.setattr(server, "RESULT_LIMIT", 2500)
+    test = ("name: t\noperation: Account transactions\nexamples:\n"
+            + "".join(f"  - {{case: c{i}, start: today-{i}, expected: success}}\n" for i in range(1, 9))
+            + "  - {case: wrong, start: today, expected: success,"
+              " checks: [count AccountTransactionHistoryList = 99]}\n")
+    text = asyncio.run(server.run_test(content=test, customer="1000001", environment="demo"))
+    r = json.loads(text)
+    full = json.loads(Path(r["result_file"]).read_text("utf-8"))
+    assert len(full["examples"]) == 9 and full["assertion_summary"]["total"] == 19
+    assert all("actual" in a for row in full["examples"] for a in row["assertions"])
+    wrong = next(row for row in r["examples"] if row["case"] == "wrong")
+    failed = [a for a in wrong["assertions"] if not a["passed"]]
+    assert failed[0]["actual"] is not None and failed[0]["expected"] == "count = 99"
+    assert all("actual" not in a for a in wrong["assertions"] if a["passed"]) and "result_note" in r

@@ -22,7 +22,7 @@ from .scenario.model import ScenarioError
 from .scenario.runner import Runner
 from .importer.analyze import Importer
 from .scenario.template import Context, TemplateError
-from .definitions.checks import run_checks
+from .definitions.checks import assertions
 from .definitions.generators import Generator
 from .definitions.log_import import LogImporter
 from .definitions.runner import TestRunner
@@ -52,7 +52,9 @@ PowerShell, curl or Invoke-WebRequest for service calls - use these tools.
 - Checks are short lines: success | failure | duration < 3 s | count X >= 1 | X is not empty | X = Y |
   X matches ^TR | X between a and b | X contains y | error code = CODE | for each LIST: A <= B. Prefer rules over
   fixed values for data that changes (balances, rates, dates).
-- Results start with success, result and 'problem' (the failing step and why): report these first.
+- Results start with success, result and 'problem' (the failing step and why): report these first. Every step /
+  example lists all its 'assertions' (check, source, passed, expected, actual), passed ones too: report them, not
+  only the verdict. When a result is shortened, 'result_file' has the complete one.
 - Transparency: every result that made HTTP calls has 'flow' (one line per exchange: login step, URL, HTTP status
   or error phase, time, business result), 'trace' (the exchanges that went wrong: request and response) and
   'trace_file' (full trace JSON). When something fails, show the user the failing 'flow' line, the error 'phase',
@@ -181,18 +183,83 @@ def _with_trace(result: dict[str, Any], records: list[dict[str, Any]], title: st
     if path:
         result["trace_file"] = path
 
-    # always within the limit (STM_TRACE=all too): a result the agent cannot read is not transparent
-    def size() -> int:
-        return len(json.dumps(json_ready(result), ensure_ascii=False, default=str))
-    if size() > RESULT_LIMIT and show_all and shown:
+    if _size(result) > RESULT_LIMIT and show_all and shown:
         result["trace"] = e.view(trace.brief([r for r in records if trace.went_wrong(r)] or shown[-1:]),
                                  limit=TRACE_LIMIT)
-    if size() > RESULT_LIMIT:
+    if _size(result) > RESULT_LIMIT:
         result.pop("trace", None)
         result["trace_note"] = "The result is long: request/response details are only in trace_file."
-    if size() > RESULT_LIMIT:
-        result = e.view(result, limit=RESULT_LIMIT)
     return result
+
+
+def _size(result: Any) -> int:
+    return len(json.dumps(json_ready(result), ensure_ascii=False, default=str))
+
+
+def _parts(result: dict[str, Any]) -> list[dict[str, Any]]:
+    """Steps / examples of a test result, or of every test of a tag run."""
+    tests = result.get("tests") if isinstance(result.get("tests"), list) else [result]
+    return [p for t in tests if isinstance(t, dict) for key in ("steps", "examples")
+            for p in t.get(key) or [] if isinstance(p, dict)]
+
+
+def _fit(result: dict[str, Any], title: str) -> dict[str, Any]:
+    """Always within the limit: a result the agent cannot read is not transparent. Before anything is shortened, the
+    complete result goes to a file. Then, step by step, until it fits (the structure always stays):
+    passed assertions lose their values -> details of steps / examples go -> flow keeps only the lines that went
+    wrong -> passed steps / examples keep only their counts -> only the failed ones stay."""
+    if _size(result) <= RESULT_LIMIT:
+        return result
+    path = trace.write_file(json_ready(result), f"{title}-result")
+    if path:
+        result["result_file"] = path
+        result["result_note"] = ("The result was shortened to fit; result_file has every step, example and assertion "
+                                 "with its values. Read it when the user wants the full list.")
+    for shrink in (_shrink_passed_values, _shrink_details, _shrink_flow, _shrink_passed_parts, _shrink_to_failed):
+        shrink(result)
+        if _size(result) <= RESULT_LIMIT:
+            return result
+    return engine().view(result, limit=RESULT_LIMIT)
+
+
+def _shrink_passed_values(result: dict[str, Any]) -> None:
+    for part in _parts(result):
+        for a in part.get("assertions") or []:
+            if a.get("passed"):
+                a.pop("actual", None)
+                a.pop("expected", None)
+
+
+def _shrink_details(result: dict[str, Any]) -> None:
+    for part in _parts(result):
+        for key in ("response_summary", "input", "duration_ms", "errors"):
+            part.pop(key, None)
+
+
+def _shrink_flow(result: dict[str, Any]) -> None:
+    lines = result.get("flow") or []
+    wrong = [line for line in lines if "ERROR" in line or "failure" in line or "HTTP 4" in line or "HTTP 5" in line]
+    if len(wrong) < len(lines):
+        result["flow"] = wrong + [f"... {len(lines) - len(wrong)} lines without a problem are in trace_file"]
+
+
+def _shrink_passed_parts(result: dict[str, Any]) -> None:
+    for part in _parts(result):
+        if part.get("result") == "passed":
+            part.pop("assertions", None)
+        else:
+            part["assertions"] = [a for a in part.get("assertions") or [] if not a.get("passed")]
+
+
+def _shrink_to_failed(result: dict[str, Any]) -> None:
+    tests = result.get("tests") if isinstance(result.get("tests"), list) else [result]
+    for t in tests:
+        for key in ("steps", "examples"):
+            items = t.get(key)
+            if isinstance(items, list):
+                kept = [p for p in items if p.get("result") not in ("passed", "skipped")]
+                if len(kept) < len(items):
+                    t[key] = kept + [{"note": f"{len(items) - len(kept)} passed / skipped are in result_file"}]
 
 
 async def _call(fn: Callable[[], Any]) -> str:
@@ -204,9 +271,9 @@ async def _call(fn: Callable[[], Any]) -> str:
                 result = fn()
                 if isinstance(result, dict) and "success" not in result:
                     result = {"success": True, **result}
-                return _with_trace(result, records, title) if isinstance(result, dict) else result
+                return _fit(_with_trace(result, records, title), title) if isinstance(result, dict) else result
             except Exception as exc:  # noqa: BLE001 - reported to the model as a structured error
-                return _with_trace(engine().view(_error(exc)), records, title)
+                return _fit(_with_trace(engine().view(_error(exc)), records, title), title)
 
     result = await anyio.to_thread.run_sync(guarded)
     return json.dumps(json_ready(result), ensure_ascii=False, default=str, separators=(",", ":"))
@@ -512,9 +579,9 @@ async def run_test(test: str | None = None, customer: str | None = None, environ
                    content: str | None = None, inputs: dict[str, Any] | None = None,
                    tags: list[str] | None = None) -> str:
     """Run a defined test (by name) with a customer number, or a draft given as YAML 'content'. With 'tags' (and no
-    test) every approved test having one of the tags runs. Returns per step/example: passed, failed (with the failed
-    checks and a response summary), observation (expected '?': ask the user), error (could not run);
-    and 'ai_review' questions for you."""
+    test) every approved test having one of the tags runs. Returns per step/example: passed, failed, observation
+    (expected '?': ask the user) or error (could not run), with every assertion (check, source, passed, expected,
+    actual) and an assertion_summary; 'ai_review' questions for you."""
     def run() -> dict[str, Any]:
         e = engine()
         runner = TestRunner(e)
@@ -526,12 +593,10 @@ async def run_test(test: str | None = None, customer: str | None = None, environ
                 raise ValueError(f"no approved test tagged '{', '.join(tags)}'")
             results = [runner.run(t.name, None, customer, environment, inputs) for t in tests]
             summary = {s: sum(1 for r in results if r["result"] == s) for s in ("passed", "failed", "observations")}
-            for r in results:
-                if r["result"] == "passed":
-                    r.pop("steps", None)
-                    r.pop("examples", None)
-            return e.view({"summary": {k: v for k, v in summary.items() if v}, "tests": results}, 60000)
-        return e.view(runner.run(test, content, customer, environment, inputs), 60000)
+            totals = {k: sum(r["assertion_summary"][k] for r in results) for k in ("total", "passed", "failed")}
+            return e.view({"summary": {k: v for k, v in summary.items() if v}, "assertion_summary": totals,
+                           "tests": results}, 1_000_000)
+        return e.view(runner.run(test, content, customer, environment, inputs), 1_000_000)
     return await _call(run)
 
 
@@ -560,9 +625,9 @@ async def call_operation(operation: str, customer: str | None = None, inputs: di
         if result.get("error"):
             out["connection_error"] = result["error"]
         if checks:
-            res = run_checks([str(c) for c in checks], result, runner.error_paths(op))
+            res = assertions([(str(c), "call") for c in checks], result, runner.error_paths(op))
             out["checks_passed"] = all(c["passed"] for c in res)
-            out["checks"] = e.view(res)
+            out["assertions"] = e.view(res)
         out["response"] = e.view(result.get("body"), 30000)
         return out
     return await _call(run)

@@ -18,7 +18,8 @@ from typing import TYPE_CHECKING, Any
 
 from ..normalize import json_ready
 from ..scenario.template import Context, TemplateError
-from .checks import resolve, run_checks
+from ..trace import shorten
+from .checks import assertions, resolve
 from .compiler import template
 from .schemas import EXAMPLE_KEYS
 from .store import DefinitionError, Record
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
     from ..engine import Engine
 
 SUMMARY_CHARS = 2500
+ACTUAL_CHARS = 300      # an assertion's actual value in the result (the whole response is in the trace file)
 RESULTS = ("passed", "failed", "observation", "error", "skipped")
 
 
@@ -160,6 +162,9 @@ class TestRunner:
             report["steps"] = parts
         counts = {s: sum(1 for p in parts if p["result"] == s) for s in RESULTS}
         report["summary"] = {k: v for k, v in counts.items() if v}
+        every = [a for p in parts for a in p.get("assertions") or []]
+        report["assertion_summary"] = {"total": len(every), "passed": sum(1 for a in every if a["passed"]),
+                                       "failed": sum(1 for a in every if not a["passed"])}
         report["result"] = "failed" if counts["failed"] or counts["error"] else (
             "observations" if counts["observation"] else "passed")
         if counts["observation"]:
@@ -172,8 +177,10 @@ class TestRunner:
         report["duration_ms"] = round((time.perf_counter() - started) * 1000, 1)
         return report
 
-    def _judge(self, op: Record, expected: str, extra_checks: list[str], result: dict[str, Any],
+    def _judge(self, op: Record, expected: str, extra_checks: list[tuple[str, str]], result: dict[str, Any],
                environment: str, variables: dict[str, Any]) -> dict[str, Any]:
+        """Every assertion of a step / example with where it comes from: the system's business rule, the
+        operation's own checks, the test's checks, the step's or the example's checks."""
         if result.get("error"):
             return {"result": "error", "message": f"service not reached: {result['error'].get('message')}"}
         succeeded = bool((result.get("business") or {}).get("success"))
@@ -185,21 +192,21 @@ class TestRunner:
             out["result"] = "observation"
             return out
         if expected == "error":
-            lines = ["failure"] + list(extra_checks)
+            items = [("failure", "system")] + list(extra_checks)
         else:
-            lines = ["success"] + list(op.data.get("checks") or []) + list(extra_checks)
+            items = [("success", "system")] + [(str(x), "operation") for x in op.data.get("checks") or []] + \
+                list(extra_checks)
         try:
-            lines = [str(x) for x in self._render(lines, environment, variables)]
+            items = [(str(self._render(line, environment, variables)), source) for line, source in items]
         except TemplateError as exc:
             return {**out, "result": "error", "message": str(exc)}
-        checks = run_checks(lines, result, self.error_paths(op))
-        failed = [c for c in checks if not c["passed"]]
-        out["result"] = "passed" if not failed else "failed"
-        if failed:
-            out["failed_checks"] = self.e.view(failed)
+        records = assertions(items, result, self.error_paths(op))
+        for r in records:
+            r["actual"] = shorten(r.get("actual"), ACTUAL_CHARS)
+        out["assertions"] = self.e.view(records)
+        _count(out)
+        if out["result"] == "failed":
             out["response_summary"] = self.summary(result.get("body"))
-        else:
-            out["checks"] = len(checks)
         return out
 
     def _steps(self, data: dict[str, Any], customer: str | None, environment: str,
@@ -222,14 +229,17 @@ class TestRunner:
                 continue
             entry["input"] = self.e.view(effective)
             local = {**variables, **{k: v for k, v in effective.items() if v is not None}}
-            entry.update(self._judge(op, step.get("expected", "success"), step.get("checks") or [], result,
-                                     environment, local))
+            entry.update(self._judge(op, step.get("expected", "success"),
+                                     [(str(x), "step") for x in step.get("checks") or []], result, environment, local))
             for name, path in (step.get("extract") or {}).items():
                 values = resolve(result.get("body"), path)
                 if values:
                     variables[name] = values[0]
-                elif entry["result"] == "passed":
-                    entry.update(result="failed", message=f"extract: '{path}' is not in the response")
+                elif "assertions" in entry:          # what the next steps need is an assertion too
+                    entry["assertions"].append({"check": f"extract {name}: {path}", "source": "step", "passed": False,
+                                                "expected": "exists", "actual": None,
+                                                "message": f"'{path}' is not in the response"})
+                    _count(entry)
             if step.get("ai_review"):
                 entry["_ai"] = {"step": entry["step"], "question": step["ai_review"],
                                 "data": self.summary(result.get("body"))}
@@ -254,11 +264,20 @@ class TestRunner:
                 continue
             entry["input"] = self.e.view(effective)
             local = {**variables, **{k: v for k, v in effective.items() if v is not None}}
-            extra = list(data.get("checks") or []) + list(row.get("checks") or []) if row["expected"] == "success" \
-                else list(row.get("checks") or [])
+            row_checks = [(str(x), "example") for x in row.get("checks") or []]
+            extra = [(str(x), "test") for x in data.get("checks") or []] + row_checks \
+                if row["expected"] == "success" else row_checks
             entry.update(self._judge(op, row["expected"], extra, result, environment, local))
             if data.get("ai_review"):
                 entry["_ai"] = {"case": row["case"], "question": data["ai_review"],
                                 "data": self.summary(result.get("body"), 800)}
             out.append(entry)
         return out
+
+
+def _count(entry: dict[str, Any]) -> None:
+    """Result and assertion counts of a step / example from its assertions."""
+    records = entry["assertions"]
+    failed = sum(1 for a in records if not a["passed"])
+    entry["assertion_summary"] = {"total": len(records), "passed": len(records) - failed, "failed": failed}
+    entry["result"] = "failed" if failed else "passed"
